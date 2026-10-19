@@ -416,7 +416,7 @@ setx OPENCODE_MESH_ROOT "C:\path\to\opencode-mesh"
 2. Hub 会删除该节点的注册身份、token、stcp 密钥与已用加入密钥，并释放端口；本机主控删除节点配置、会话绑定并重建/清理 visitors 配置
 3. 旧版 Hub 会自动回退到 `POST /admin/revoke`（建议 Hub 同步升级）
 4. 被移除节点无法再用旧凭据接入；如需在本机彻底清除痕迹：停止节点后删除 `node-agent/data/` 与 `node-agent/node.json`
-5. 本机节点不能从自身 App 移除；请在其他主控操作，或在本机使用「设置」→「重置身份」
+5. 本机节点不显示「移除」按钮；请在其他主控操作，或在本机使用「设置」→「重置身份」
 
 > 审计日志只记录节点 id、端口与清理的密钥数量，不记录 token / stcp 密钥 / 密码。
 >

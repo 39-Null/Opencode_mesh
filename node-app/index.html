@@ -1457,6 +1457,13 @@
       ocb.textContent = oc.text;
       if (oc.title) ocb.title = oc.title;
       const tail = [nm, badge, ocb];
+      const isLocal = !!localNodeId && (n.id === localNodeId || n.name === localNodeId);
+      if (isLocal) {
+        const localBadge = document.createElement("span");
+        localBadge.className = "badge";
+        localBadge.textContent = "本机";
+        tail.push(localBadge);
+      }
       const ctx = ctxBadgeInfo(n, localNodeId);
       if (ctx) {
         const cb = document.createElement("span");
@@ -1501,12 +1508,15 @@
       kbtn.textContent = "清空";
       kbtn.title = "清空本机与该节点的对话上下文（删除目标节点会话，不可恢复）";
       kbtn.onclick = () => clearNodeUI(n, kbtn);
-      const rbtn = document.createElement("button");
-      rbtn.className = "mini danger";
-      rbtn.textContent = "移除";
-      rbtn.title = "从 Hub 与本机彻底移除该节点（删除注册身份、token、stcp 密钥、加入密钥与会话绑定）";
-      rbtn.onclick = () => removeNodeUI(n, rbtn);
-      btns.append(cbtn, kbtn, rbtn);
+      btns.append(cbtn, kbtn);
+      if (!isLocal) {
+        const rbtn = document.createElement("button");
+        rbtn.className = "mini danger";
+        rbtn.textContent = "移除";
+        rbtn.title = "从 Hub 与本机彻底移除该节点（删除注册身份、token、stcp 密钥、加入密钥与会话绑定）";
+        rbtn.onclick = () => removeNodeUI(n, rbtn);
+        btns.append(rbtn);
+      }
       item.append(head, meta, btns);
       box.append(item);
     }
