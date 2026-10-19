@@ -19,7 +19,6 @@ const path = require("path");
     ignore: [
       /^\/dist-win($|\/)/,
       /^\/dist-linux($|\/)/,
-      /Aoi\.png$/,
       /^\/make-icon\.js$/,
       /^\/pack-linux\.js$/,
       /^\/pack-win\.js$/,

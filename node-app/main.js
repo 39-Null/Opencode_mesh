@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard, Tray, Menu, nativeImage, net } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, clipboard, Tray, Menu, nativeImage, net, screen } = require("electron");
 const { exec, execFile } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -628,13 +628,18 @@ function showMainWindow() {
 }
 
 function createWindow() {
+  // 控制台采用「侧边导航 + 工作区」布局；按屏幕可用区域取尺寸，避免小屏笔记本超出桌面。
+  const work = screen.getPrimaryDisplay().workAreaSize;
+  const width = Math.min(1180, Math.max(900, work.width - 100));
+  const height = Math.min(820, Math.max(620, work.height - 80));
   mainWindow = new BrowserWindow({
-    width: 580,
-    height: 720,
-    minWidth: 520,
-    minHeight: 560,
+    width,
+    height,
+    minWidth: 860,
+    minHeight: 600,
     resizable: true,
     autoHideMenuBar: true,
+    backgroundColor: "#0a0b0e",
     title: "Aoi mesh",
     ...(fs.existsSync(ICON) ? { icon: ICON } : {}),
     webPreferences: { nodeIntegration: true, contextIsolation: false },

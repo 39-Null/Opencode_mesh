@@ -645,7 +645,7 @@ transport.useEncryption = true
   }
 
   async run() {
-    log(`opencode-mesh node agent v${VERSION} 启动（node=${this.config.name}）`);
+    log(`Aoi mesh node agent v${VERSION} 启动（node=${this.config.name}）`);
     try {
       fs.mkdirSync(DATA_DIR, { recursive: true });
       fs.writeFileSync(path.join(DATA_DIR, "agent.pid"), JSON.stringify({ pid: process.pid, startedAt: Date.now(), marker: __filename }));

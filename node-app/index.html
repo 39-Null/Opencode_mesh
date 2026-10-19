@@ -2,290 +2,771 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
+<meta name="color-scheme" content="dark" />
+<title>Aoi mesh</title>
+<link rel="icon" href="assets/Aoi.png" />
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #0a0b0e;
+    --bg-elev: #0d0f13;
+    --sidebar: #0b0d10;
+    --surface: #111419;
+    --surface-2: #151922;
+    --surface-3: #1a1f29;
+    --line: rgba(255, 255, 255, 0.07);
+    --line-2: rgba(255, 255, 255, 0.12);
+    --text: #e7e9ef;
+    --text-2: #a3aab8;
+    --text-3: #6d7585;
+    --accent: #7c8cff;
+    --accent-soft: rgba(124, 140, 255, 0.12);
+    --accent-line: rgba(124, 140, 255, 0.35);
+    --ok: #4ade80;
+    --warn: #f0b455;
+    --bad: #ff6b6b;
+    --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --radius: 12px;
+  }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; padding: 12px 16px 28px; user-select: none;
-    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 13px; background: #14161a; color: #e8eaed;
+    margin: 0; overflow: hidden; user-select: none;
+    font: 13px/1.5 var(--sans);
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
   }
-  .dim { color: #9aa0a6; }
-  .ok { color: #34c759; }
-  .bad { color: #d64545; }
-  .warn { color: #f5a623; }
-  .card {
-    background: #1d2025; border: 1px solid #2a2e35; border-radius: 10px;
-    padding: 10px 14px; margin-bottom: 10px;
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(900px 480px at 16% -12%, rgba(124, 140, 255, 0.14), transparent 62%),
+      radial-gradient(720px 420px at 102% -4%, rgba(80, 200, 190, 0.05), transparent 58%);
   }
-  .cardTitle { font-size: 12px; color: #9aa0a6; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-  .row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
-  .row .k { color: #b9bec7; }
-  .row .v { text-align: right; }
-  .btns { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-  button {
-    border: none; border-radius: 8px; cursor: pointer;
-    color: #fff; background: #2f6fed; padding: 7px 14px; font-size: 13px;
-    transition: opacity .15s;
-  }
-  button:hover { opacity: .88; }
-  button:disabled { opacity: .45; cursor: default; }
-  button.small { padding: 4px 10px; font-size: 12px; border-radius: 7px; }
-  button.mini { padding: 4px 10px; font-size: 12px; border-radius: 7px; }
-  button.ghost { background: transparent; border: 1px solid #3a3f47; color: #cfd3da; }
-  button.ghost:hover { background: #262a30; }
-  header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  #dot { width: 12px; height: 12px; border-radius: 50%; background: #8a8f98; flex: none; }
-  #title { font-size: 15px; font-weight: 600; }
-  #host { font-size: 11px; }
-  header .grow { flex: 1; }
+  .dim { color: var(--text-3); }
+  .ok { color: var(--ok); }
+  .bad { color: var(--bad); }
+  .warn { color: var(--warn); }
   .hidden { display: none !important; }
-  #diagList .item { padding: 6px 0; border-bottom: 1px solid #262a30; }
-  #diagList .item:last-child { border-bottom: none; }
-  #diagList .d-name { font-weight: 600; }
-  #diagList .d-hint { font-size: 11px; color: #f5a623; margin-top: 2px; }
+  .grow { flex: 1; min-width: 0; }
+
+  /* ---------- 应用骨架：侧边导航 + 主工作区 ---------- */
+  .app {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 224px minmax(0, 1fr);
+    height: 100vh;
+  }
+  .sidebar {
+    display: flex; flex-direction: column; min-width: 0;
+    padding: 14px 12px 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 38%), var(--sidebar);
+    border-right: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 20px; min-width: 0; }
+  .logoMark {
+    width: 32px; height: 32px; flex: none; display: block;
+    border-radius: 9px; object-fit: cover;
+    background: linear-gradient(145deg, #8f9cff, #5e6ad2);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.32);
+  }
+  .brandText { min-width: 0; }
+  .brandName { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
+  .brandName b { color: var(--accent); font-weight: 650; }
+  .brandSub {
+    margin-top: 2px; font: 9.5px/1.3 var(--mono);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3);
+  }
+  .navLabel {
+    margin: 8px 10px; font: 10px/1 var(--mono);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3);
+  }
+  #tabs { display: flex; flex-direction: column; gap: 4px; }
+  #tabs .tab {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 10px; border: 1px solid transparent; border-radius: 9px;
+    background: transparent; color: var(--text-2);
+    font: 500 13px/1.2 var(--sans); text-align: left; cursor: pointer;
+    transition: background 0.16s, color 0.16s, border-color 0.16s;
+  }
+  #tabs .tab svg { width: 16px; height: 16px; flex: none; opacity: 0.8; }
+  #tabs .tab span { flex: 1; white-space: nowrap; }
+  #tabs .tab kbd { opacity: 0; transition: opacity 0.16s; }
+  #tabs .tab:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+  #tabs .tab:hover kbd { opacity: 0.65; }
+  #tabs .tab.active {
+    color: #fff; background: var(--accent-soft); border-color: var(--accent-line);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  #tabs .tab.active svg { color: var(--accent); opacity: 1; }
+  .sidebarFoot {
+    margin-top: auto; padding-top: 10px;
+    border-top: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .sideStatus {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface);
+  }
+  .sideDot {
+    width: 8px; height: 8px; flex: none; margin-top: 4px; border-radius: 50%;
+    background: var(--text-3); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .sideDot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.14); }
+  .sideTitle { font-size: 12px; font-weight: 600; }
+  .sideText { margin-top: 1px; font-size: 10.5px; line-height: 1.45; color: var(--text-3); }
+  .tabQuit {
+    padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: transparent; color: var(--text-2); font-size: 12px; font-weight: 500; cursor: pointer;
+    transition: color 0.16s, border-color 0.16s, background 0.16s;
+  }
+  .tabQuit:hover { color: var(--bad); border-color: rgba(255, 107, 107, 0.35); background: rgba(255, 107, 107, 0.06); }
+
+  .main {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    min-width: 0; height: 100vh;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 15px 24px; border-bottom: 1px solid var(--line);
+    background: rgba(10, 11, 14, 0.72); backdrop-filter: blur(10px);
+    position: relative; z-index: 2;
+  }
+  .pageHead { min-width: 0; }
+  #title { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; }
+  .pageSub {
+    display: flex; align-items: center; gap: 7px; margin-top: 6px;
+    color: var(--text-3); font: 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden;
+  }
+  #dot {
+    width: 7px; height: 7px; flex: none; border-radius: 50%;
+    background: var(--text-3); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+    transition: background 0.2s;
+  }
+  #host { overflow: hidden; text-overflow: ellipsis; }
+  .topbarActions { display: flex; align-items: center; gap: 8px; flex: none; }
+  .cmdBtn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border: 1px solid var(--line-2); border-radius: 8px;
+    background: var(--surface-2); color: var(--text-2);
+    font: 500 12px/1.2 var(--sans); cursor: pointer;
+    transition: background 0.16s, color 0.16s, border-color 0.16s;
+  }
+  .cmdBtn:hover { background: var(--surface-3); color: var(--text); }
+  .cmdBtn svg { width: 14px; height: 14px; }
+
+  .content { overflow: auto; padding: 22px 24px 30px; scroll-behavior: smooth; }
+  .content::-webkit-scrollbar { width: 10px; height: 10px; }
+  .content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  .content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); background-clip: padding-box; border: 3px solid transparent; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  [data-tab-content] { max-width: 980px; margin: 0 auto; }
+  .pageIntro {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+    margin-bottom: 16px;
+  }
+  .pageIntro .actions { display: flex; gap: 8px; flex: none; flex-wrap: wrap; }
+  .eyebrow {
+    margin-bottom: 6px; font: 10px/1.2 var(--mono);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);
+  }
+  .lede { max-width: 640px; color: var(--text-2); font-size: 12.5px; line-height: 1.65; }
+  .cardDesc { margin: -4px 0 12px; color: var(--text-3); font-size: 12px; line-height: 1.6; }
+
+  /* ---------- 卡片与状态 ---------- */
+  .card {
+    position: relative; margin-bottom: 12px; padding: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 58%), var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .cardTitle {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px; color: var(--text);
+    font-size: 12.5px; font-weight: 650; letter-spacing: -0.01em;
+  }
+  .cardTitle .dim { font-weight: 400; }
+  .statGrid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px; margin-bottom: 12px;
+  }
+  .stat {
+    min-width: 0; padding: 13px 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 60%), var(--surface);
+    border: 1px solid var(--line); border-radius: 11px;
+  }
+  .stat .k {
+    display: block; color: var(--text-3);
+    font: 10.5px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .stat .v {
+    display: flex; align-items: center; gap: 7px; margin-top: 8px;
+    color: var(--text); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere;
+  }
+  .stat .v::before {
+    content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%;
+    background: currentColor; opacity: 0.85;
+  }
+  .stat .v.ok { color: var(--ok); }
+  .stat .v.bad { color: var(--bad); }
+  .stat .v.warn { color: var(--warn); }
+  .stat .v.dim { color: var(--text-3); }
+
+  /* ---------- 控件 ---------- */
+  button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 13px; border: 1px solid transparent; border-radius: 8px;
+    background: var(--accent); color: #0b0c10;
+    font: 600 12.5px/1.2 var(--sans); cursor: pointer;
+    transition: filter 0.16s, transform 0.08s, background 0.16s, color 0.16s, border-color 0.16s;
+  }
+  button:hover { filter: brightness(1.07); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.45; cursor: default; transform: none; filter: none; }
+  button.small { padding: 7px 11px; font-size: 12px; }
+  button.mini { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
+  button.ghost {
+    background: var(--surface-2); border-color: var(--line-2); color: var(--text-2); font-weight: 500;
+  }
+  button.ghost:hover { background: var(--surface-3); color: var(--text); filter: none; }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent-line); outline-offset: 2px;
+  }
+  .btnIco { width: 13px; height: 13px; flex: none; }
+  .quitIco { display: none; width: 15px; height: 15px; flex: none; }
+  .btns { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .btns.rowEnd { justify-content: flex-end; }
+
+  select, input[type="password"], input[type="number"], input[type="text"] {
+    padding: 7px 9px; border: 1px solid var(--line-2); border-radius: 8px;
+    background: #0b0d11; color: var(--text); font: 12px/1.4 var(--sans); outline: none;
+    transition: border-color 0.16s, box-shadow 0.16s;
+  }
+  select:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="text"]:focus {
+    border-color: var(--accent-line); box-shadow: 0 0 0 3px rgba(124, 140, 255, 0.12);
+  }
+  input.grow { flex: 1; min-width: 180px; }
+  input.short { width: 92px; }
+  input[type="checkbox"] {
+    width: 15px; height: 15px; margin: 0 8px 0 0; vertical-align: -2px;
+    accent-color: var(--accent); cursor: pointer;
+  }
+  .fl { display: flex; align-items: center; gap: 10px; padding: 5px 0; flex-wrap: wrap; }
+  .fl label { flex: none; min-width: 96px; color: var(--text-2); font-size: 12px; }
+  .fl label.withCheck { min-width: 0; display: inline-flex; align-items: flex-start; gap: 0; line-height: 1.6; cursor: pointer; }
+  .idchip {
+    padding-top: 2px; color: var(--text-3);
+    font: 12px/1.4 var(--mono); user-select: text; overflow-wrap: anywhere;
+  }
+  .idchip.set { color: var(--text-2); }
+
+  /* ---------- 日志与诊断 ---------- */
   pre.logbox {
-    max-height: 200px; overflow: auto; font: 11px/1.5 Consolas, monospace;
-    background: #101215; border-radius: 6px; padding: 8px; margin: 6px 0 0;
+    max-height: 260px; overflow: auto; margin: 8px 0 0; padding: 12px;
+    background: #08090c; border: 1px solid var(--line); border-radius: 9px;
+    color: #b9c0cc; font: 11px/1.65 var(--mono);
     white-space: pre-wrap; word-break: break-all; user-select: text;
   }
-  select, input[type="password"], input[type="number"], input[type="text"] {
-    background: #101215; color: #e8eaed; border: 1px solid #3a3f47;
-    border-radius: 7px; padding: 5px 8px; font-size: 12px; outline: none;
+  #logFile { font: 10.5px var(--mono); }
+  #diagList .item { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  #diagList .item:last-child { border-bottom: none; }
+  #diagList .d-name { font-weight: 600; }
+  #diagList .d-hint { margin-top: 3px; color: var(--warn); font-size: 11px; }
+  #nodeState, #visitorState, #mcpStatus, #updStatus {
+    color: var(--text-2); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere;
   }
-  input.grow { flex: 1; min-width: 140px; }
-  input.short { width: 90px; }
-  #opline {
-    font-size: 12px; color: #9aa0a6; white-space: pre-wrap; min-height: 18px;
-    border-top: 1px solid #262a30; padding-top: 8px; margin-top: 12px;
+  #nodeState.ok, #visitorState.ok, #mcpStatus.ok, #updStatus.ok { color: var(--ok); }
+  #nodeState.warn, #visitorState.warn, #mcpStatus.warn, #updStatus.warn { color: var(--warn); }
+  #nodeState.bad, #visitorState.bad, #mcpStatus.bad, #updStatus.bad { color: var(--bad); }
+
+  /* ---------- 节点列表 ---------- */
+  #nodeList { display: flex; flex-direction: column; gap: 8px; }
+  #nodeList.dim {
+    display: block; padding: 22px; border: 1px dashed var(--line-2); border-radius: 10px;
+    text-align: center; color: var(--text-3); font-size: 12px;
   }
-  /* tabs */
-  #tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-  #tabs .tab {
-    background: transparent; border: 1px solid #3a3f47; color: #cfd3da;
-    padding: 6px 18px; border-radius: 8px; font-size: 13px;
+  .nodeItem {
+    padding: 12px 14px; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 11px;
+    transition: background 0.16s, border-color 0.16s;
   }
-  #tabs .tab.active { background: #2f6fed; border-color: #2f6fed; color: #fff; }
-  /* node list */
-  .nrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #262a30; flex-wrap: wrap; }
+  .nodeItem:hover { background: var(--surface-3); border-color: var(--line-2); }
+  .nodeHead { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .nodeName { font-size: 13.5px; font-weight: 650; letter-spacing: -0.01em; }
+  .nodeId { margin-left: auto; color: var(--text-3); font: 10.5px/1.4 var(--mono); }
+  .nodeMeta { margin: 7px 0 10px; color: var(--text-3); font: 11px/1.55 var(--mono); overflow-wrap: anywhere; }
+  .nodeBtns { margin: 0; gap: 6px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px; flex: none;
+    padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03); color: var(--text-3);
+    font: 10.5px/1.5 var(--mono); white-space: nowrap;
+  }
+  .badge::before {
+    content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%;
+    background: currentColor; opacity: 0.9;
+  }
+  .badge.ok { color: var(--ok); background: rgba(74, 222, 128, 0.07); border-color: rgba(74, 222, 128, 0.22); }
+  .badge.bad { color: var(--bad); background: rgba(255, 107, 107, 0.07); border-color: rgba(255, 107, 107, 0.22); }
+  .badge.warn { color: var(--warn); background: rgba(240, 180, 85, 0.08); border-color: rgba(240, 180, 85, 0.24); }
+  .badgeCtx { color: var(--text-3); }
+  .badgeCtx.warn { color: var(--warn); background: rgba(240, 180, 85, 0.08); border-color: rgba(240, 180, 85, 0.24); }
+  .badgeCtx.bad { color: var(--bad); background: rgba(255, 107, 107, 0.07); border-color: rgba(255, 107, 107, 0.22); }
+  .nrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .nrow:last-child { border-bottom: none; }
   .ninfo { font-size: 12px; }
   .nbtns { display: flex; gap: 6px; }
-  /* 节点卡片 */
-  .nodeItem { padding: 10px 0 12px; border-bottom: 1px solid #262a30; }
-  .nodeItem:last-child { border-bottom: none; padding-bottom: 2px; }
-  .nodeHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .nodeName { font-size: 14px; font-weight: 600; color: #e8eaed; }
-  .badge { font-size: 11px; padding: 1px 8px; border-radius: 9px; background: #232936; color: #9aa4b2; flex: none; }
-  .badgeCtx { border: 1px solid transparent; }
-  .badgeCtx.warn { background: #3a2f14; color: #e8c05a; border-color: #6b5520; }
-  .badgeCtx.bad { background: #3d1a1e; color: #ff6b6b; border-color: #7a2c33; }
-  .badge.ok { color: #4cc38a; }
-  .badge.bad { color: #e5534b; }
-  .nodeId { font-size: 11px; color: #7d8695; font-family: Consolas, monospace; margin-left: auto; }
-  .nodeMeta { font-size: 12px; color: #8a94a6; margin: 5px 0 8px; }
-  .nodeBtns { margin: 0; }
-  .idchip { font-size: 12px; color: #7d8695; font-family: Consolas, monospace; user-select: text; padding-top: 3px; }
-  .idchip.set { color: #c6ccd6; }
-  /* 弹层（首次配置向导 / 修改密码） */
-  .overlay { position: fixed; inset: 0; background: rgba(8, 10, 14, 0.72); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 18px; }
-  .setupCard { background: #171a21; border: 1px solid #2a2f3a; border-radius: 12px; padding: 18px 18px 14px; width: 100%; max-width: 520px; max-height: 92vh; overflow: auto; }
-  .setupTitle { font-size: 16px; font-weight: 600; }
-  .setupSub { font-size: 12px; color: #8a94a6; margin: 6px 0 12px; }
-  .fl { display: flex; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
-  .fl label { color: #b9bec7; flex: none; min-width: 84px; font-size: 12px; }
-  .groupLabel { font-size: 11px; color: #8a94a6; letter-spacing: 1px; margin: 14px 2px 8px; }
+
+  /* ---------- 设置分区 ---------- */
+  .subnav {
+    display: inline-flex; flex-wrap: wrap; gap: 4px;
+    max-width: 100%; margin: 0 0 18px; padding: 5px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .subnav button {
+    padding: 6px 11px; border: 1px solid transparent; border-radius: 7px;
+    background: transparent; color: var(--text-3); font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .subnav button svg { width: 14px; height: 14px; flex: none; opacity: 0.8; }
+  .subnav button:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); filter: none; }
+  .subnav button.active {
+    background: var(--accent-soft); border-color: var(--accent-line); color: var(--text);
+  }
+  .subnav button.active svg { color: var(--accent); opacity: 1; }
+  .settingsPane { animation: paneIn 0.18s ease-out; }
+  .moduleHead { margin: 2px 0 14px; }
+  .moduleHead .eyebrow { margin-bottom: 5px; }
+  .moduleTitle { font-size: 16px; font-weight: 650; letter-spacing: -0.02em; }
+  .moduleDesc { max-width: 680px; margin-top: 5px; color: var(--text-3); font-size: 12px; line-height: 1.6; }
+
+  /* ---------- 底部状态栏 ---------- */
+  .statusbar {
+    display: flex; align-items: center; gap: 16px;
+    min-height: 36px; padding: 7px 20px;
+    border-top: 1px solid var(--line); background: rgba(10, 11, 14, 0.9);
+    color: var(--text-3); font: 11px/1.5 var(--mono);
+  }
+  #opline {
+    flex: 1; min-width: 0; max-height: 66px; overflow: auto;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .kbdHints { display: flex; align-items: center; gap: 5px; flex: none; white-space: nowrap; color: var(--text-3); }
+  kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    border: 1px solid var(--line-2); border-radius: 4px;
+    background: var(--surface-2); color: var(--text-2);
+    font: 10px/1 var(--mono);
+  }
+
+  /* ---------- 弹层 ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: rgba(4, 5, 8, 0.7); backdrop-filter: blur(8px);
+    animation: fadeIn 0.16s ease-out;
+  }
+  .setupCard {
+    width: 100%; max-width: 620px; max-height: 90vh; overflow: auto;
+    padding: 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 42%), var(--surface);
+    border: 1px solid var(--line-2); border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  }
+  .setupCard::-webkit-scrollbar { width: 10px; }
+  .setupCard::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  .setupHead { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 16px; }
+  .setupAvatar {
+    width: 44px; height: 44px; flex: none; border-radius: 10px; object-fit: cover;
+    border: 1px solid var(--line-2); background: var(--surface-2);
+  }
+  .setupHead .setupSub { margin: 6px 0 0; }
+  .setupTitle { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
+  .setupSub { margin: 8px 0 16px; color: var(--text-3); font-size: 12px; line-height: 1.65; }
+  .setupSteps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .setupStep { padding: 9px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+  .setupStep b { display: block; color: var(--accent); font: 10px/1.4 var(--mono); letter-spacing: 0.1em; }
+  .setupStep span { display: block; margin-top: 2px; color: var(--text-3); font-size: 11px; }
+  .setupCard .fl { padding: 6px 0; }
+  .setupCard .fl label { min-width: 102px; }
+
+  /* ---------- 命令面板 ---------- */
+  .cmdkOverlay { align-items: flex-start; padding-top: 11vh; }
+  .cmdk {
+    width: min(580px, 100%); overflow: hidden;
+    background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    animation: popIn 0.14s ease-out;
+  }
+  .cmdkSearch { display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-bottom: 1px solid var(--line); }
+  .cmdkSearch svg { width: 16px; height: 16px; flex: none; color: var(--text-3); }
+  #cmdkInput {
+    flex: 1; min-width: 0; padding: 0; border: none; box-shadow: none;
+    background: transparent; color: var(--text); font-size: 14px; outline: none;
+  }
+  #cmdkInput:focus { border: none; box-shadow: none; }
+  .cmdkList { max-height: 340px; overflow: auto; padding: 6px; }
+  .cmdkList::-webkit-scrollbar { width: 9px; }
+  .cmdkList::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
+  .cmdGroup { padding: 9px 10px 5px; color: var(--text-3); font: 10px/1.3 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
+  .cmdItem {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 9px 10px; border: none; border-radius: 8px;
+    background: transparent; color: var(--text-2);
+    font: 500 12.5px/1.3 var(--sans); text-align: left;
+  }
+  .cmdItem:hover, .cmdItem.active { background: var(--accent-soft); color: var(--text); filter: none; transform: none; }
+  .cmdItem .cmdDot { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--text-3); }
+  .cmdItem.active .cmdDot { background: var(--accent); }
+  .cmdItem .cmdkHint { margin-left: auto; color: var(--text-3); font: 10.5px/1.3 var(--mono); }
+  .cmdEmpty { padding: 24px 12px; text-align: center; color: var(--text-3); font-size: 12px; }
+  .cmdkFoot { display: flex; gap: 16px; padding: 9px 14px; border-top: 1px solid var(--line); color: var(--text-3); font: 10.5px/1.3 var(--mono); }
+  .cmdkFoot span { display: flex; align-items: center; gap: 5px; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(0.99); } to { opacity: 1; transform: none; } }
+  @keyframes paneIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- 窄窗口：侧栏收成图标轨道 ---------- */
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 72px minmax(0, 1fr); }
+    .sidebar { padding: 12px 8px; align-items: stretch; }
+    .brand { justify-content: center; padding: 4px 0 18px; }
+    .brandText, .navLabel, #tabs .tab span, #tabs .tab kbd,
+    .sideStatus > div { display: none; }
+    #tabs .tab { justify-content: center; padding: 10px; }
+    .sideStatus { justify-content: center; padding: 10px 0; }
+    .tabQuit { padding: 9px 0; }
+    .tabQuit span { display: none; }
+    .tabQuit .quitIco { display: block; }
+    .topbar { padding: 14px 18px; }
+    .content { padding: 18px 18px 26px; }
+    .statGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pageIntro { align-items: flex-start; flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  }
 </style>
 </head>
 <body>
-  <nav id="tabs">
-    <button class="tab active" data-tab="local">本机</button>
-    <button class="tab" data-tab="master">主控</button>
-    <button class="tab" data-tab="settings">设置</button>
-  </nav>
-
-  <!-- ======================= 本机 ======================= -->
-  <section data-tab-content="local">
-    <div class="dim" style="font-size:12px; margin-bottom:8px;">本机服务状态与 Telegram Bot（远程连接 / 诊断 / 日志）</div>
-    <header>
-      <span id="dot"></span>
-      <div>
-        <div id="title">本机节点</div>
-        <div id="host" class="dim">…</div>
+<div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="logoMark" src="assets/Aoi.png" alt="" />
+        <div class="brandText">
+          <div class="brandName">Aoi <b>mesh</b></div>
+          <div class="brandSub">Local Console</div>
+        </div>
       </div>
-      <div class="grow"></div>
-      <button id="btnRestart" class="small" title="停止并重新启动远程连接">重启连接</button>
-      <button id="btnQuit" class="small ghost" title="退出应用（关闭窗口 = 最小化到系统托盘）">退出</button>
-    </header>
 
-    <section class="card">
-      <div class="row"><span class="k">远程连接</span><span class="v" id="vBot">…</span></div>
-      <div class="row"><span class="k">opencode 服务</span><span class="v" id="vOc">…</span></div>
-      <div class="row"><span class="k">代理 (mihomo)</span><span class="v" id="vProxy">…</span></div>
-      <div class="row"><span class="k">开机自启</span><span class="v" id="vAuto">…</span></div>
-    </section>
+      <nav id="tabs" aria-label="主导航">
+        <div class="navLabel">工作区</div>
+        <button class="tab active" data-tab="local" title="本机概览 (Ctrl+1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="14" rx="2" /><path d="M8 20h8M12 18v2M7 9h5M7 13h8" />
+          </svg>
+          <span>本机概览</span><kbd>1</kbd>
+        </button>
+        <button class="tab" data-tab="master" title="主控台 (Ctrl+2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="2.2" /><circle cx="18" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
+            <path d="M8.2 6h7.6M7.3 8l3.4 7.8M16.7 8l-3.4 7.8" />
+          </svg>
+          <span>主控台</span><kbd>2</kbd>
+        </button>
+        <button class="tab" data-tab="settings" title="设置 (Ctrl+3)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.6 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.6c.1.4.3.7.6 1 .3.2.7.4 1.1.4H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51.99Z" />
+          </svg>
+          <span>设置</span><kbd>3</kbd>
+        </button>
+      </nav>
 
-    <div class="btns">
-      <button id="btnDiag">一键诊断</button>
-      <button id="btnLogs" class="ghost">查看日志</button>
+      <div class="sidebarFoot">
+        <div class="sideStatus" title="本机节点状态">
+          <span id="sideDot" class="sideDot"></span>
+          <div>
+            <div class="sideTitle">本机节点</div>
+            <div id="sideText" class="sideText">读取状态…</div>
+          </div>
+        </div>
+        <button id="btnQuit" class="tabQuit" title="退出应用（关闭窗口 = 最小化到系统托盘）">
+          <svg class="quitIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v8" /><path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+          </svg>
+          <span>退出应用</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="pageHead">
+          <h1 id="title">本机概览</h1>
+          <div class="pageSub"><span id="dot"></span><span id="host">…</span></div>
+        </div>
+        <div class="topbarActions">
+          <button id="cmdkBtn" class="cmdBtn" type="button" title="打开命令面板 (Ctrl+K)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 7h14M5 12h9M5 17h12" /><circle cx="18.5" cy="12" r="1" fill="currentColor" stroke="none" />
+            </svg>
+            <span>命令</span><kbd>Ctrl K</kbd>
+          </button>
+          <button id="btnRestart" class="small ghost" title="停止并重新启动远程连接">重启连接</button>
+        </div>
+      </header>
+
+      <main class="content" id="content">
+        <!-- ======================= 本机 ======================= -->
+        <section data-tab-content="local">
+          <div class="pageIntro">
+            <div>
+              <div class="eyebrow">Local Node</div>
+              <div class="lede">本机服务状态、远程连接与诊断。关闭窗口会最小化到系统托盘，节点与隧道继续运行。</div>
+            </div>
+            <div class="actions">
+              <button id="btnDiag">一键诊断</button>
+              <button id="btnLogs" class="ghost">查看日志</button>
+            </div>
+          </div>
+
+          <div class="statGrid">
+            <div class="stat"><span class="k">远程连接</span><span class="v" id="vBot">…</span></div>
+            <div class="stat"><span class="k">opencode 服务</span><span class="v" id="vOc">…</span></div>
+            <div class="stat"><span class="k">代理 (mihomo)</span><span class="v" id="vProxy">…</span></div>
+            <div class="stat"><span class="k">开机自启</span><span class="v" id="vAuto">…</span></div>
+          </div>
+
+          <section class="card hidden" id="diagCard">
+            <div class="cardTitle">诊断结果<span style="flex:1"></span><button id="btnDiagClose" class="mini ghost">收起</button></div>
+            <div id="diagList"></div>
+          </section>
+
+          <section class="card hidden" id="logCard">
+            <div class="cardTitle">
+              <span>日志尾部</span><span id="logFile" class="dim"></span>
+              <span style="flex:1"></span>
+              <button id="btnLogRefresh" class="mini ghost">刷新</button>
+              <button id="btnLogOpen" class="mini ghost">目录</button>
+              <button id="btnLogClose" class="mini ghost">收起</button>
+            </div>
+            <pre class="logbox" id="logPre">…</pre>
+          </section>
+        </section>
+
+        <!-- ======================= 设置 ======================= -->
+        <section data-tab-content="settings" class="hidden">
+          <div class="pageIntro">
+            <div>
+              <div class="eyebrow">Configuration</div>
+              <div class="lede">按模块配置节点身份、控制端能力与运行策略。</div>
+            </div>
+          </div>
+
+          <nav class="subnav" id="settingsNav" aria-label="设置模块">
+            <button type="button" class="active" data-pane="node">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="18" height="6" rx="1.5" /><circle cx="7" cy="7" r="0.8" fill="currentColor" stroke="none" /><circle cx="7" cy="17" r="0.8" fill="currentColor" stroke="none" /></svg>
+              本机节点
+            </button>
+            <button type="button" data-pane="control">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>
+              控制端
+            </button>
+            <button type="button" data-pane="bot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
+              Telegram Bot
+            </button>
+            <button type="button" data-pane="app">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+              应用
+            </button>
+          </nav>
+
+          <div class="settingsPane" data-settings-pane="node" id="secNode">
+            <div class="moduleHead">
+              <div class="eyebrow">Node Identity</div>
+              <div class="moduleTitle">本机节点</div>
+              <div class="moduleDesc">Hub 连接、节点身份、opencode 端口与 agent 运行状态。</div>
+            </div>
+
+            <section class="card">
+              <div class="cardTitle">Hub 连接 <span class="dim">本机节点与控制端共用，保存会同步两处</span></div>
+              <div class="fl"><label>Hub 地址</label><input id="inpHubAddr" class="grow" type="text" placeholder="例如 hub.example.com 或 1.2.3.4" /><input id="inpHubPort" class="short" type="number" placeholder="18080" /></div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnHubSave" class="mini">保存并同步</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="cardTitle">节点配置 <span class="dim">本机加入网络</span></div>
+              <div class="fl"><label>节点名</label><input id="inpNodeName" class="grow" type="text" placeholder="显示名，可随时修改" /></div>
+              <div class="fl"><label>注册 id</label><span id="nodeIdChip" class="idchip">…</span></div>
+              <div class="fl"><label>加入密钥</label><input id="inpJoinKey" class="grow" type="text" placeholder="一次性密钥（或 密钥.指纹 组合串）" /></div>
+              <div class="fl"><label>opencode</label><input id="inpOcPort" class="short" type="number" placeholder="端口 4096" title="opencode serve 端口（默认 4096，仅本机回环与隧道可达，详见 docs/DEPLOY.md 端口说明）" /><button id="btnPassOpen" class="mini ghost" title="修改 opencode 密码（需验证原网络共用密码）"><svg class="btnIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.6 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.6c.1.4.3.7.6 1 .3.2.7.4 1.1.4H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51.99Z" /></svg>修改密码</button><span id="ocPassHint" class="dim"></span></div>
+              <div class="fl"><label>agent 端口</label><input id="inpAgentPort" class="short" type="number" placeholder="41999" title="node-agent 控制 API 端口（默认 41999，仅绑定 127.0.0.1，经隧道供控制端使用）" /></div>
+              <div class="fl"><label>frpc 路径</label><input id="inpFrpc" class="grow" type="text" placeholder="bin/frpc.exe" /></div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnNodeSave" class="mini">保存配置</button>
+                <button id="btnNodeStart" class="mini" title="启动节点 agent；并自动确保隧道在线">启动节点</button>
+                <button id="btnNodeStop" class="mini ghost">停止节点</button>
+                <button id="btnNodeRefresh" class="mini ghost">刷新状态</button>
+                <button id="btnNodeReset" class="mini ghost" title="换设备或更换节点名时使用：删除本机注册状态，下次启动将用新配置重新注册">重置身份</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="cardTitle">节点状态</div>
+              <div id="nodeState" class="dim">…</div>
+            </section>
+
+            <div class="btns">
+              <button id="btnAgentLog" class="ghost">查看 agent 日志</button>
+              <button id="btnAgentLogRefresh" class="mini ghost hidden">刷新</button>
+            </div>
+
+            <section class="card hidden" id="agentLogCard">
+              <div class="cardTitle">agent 日志尾部<span style="flex:1"></span><button id="btnAgentLogClose" class="mini ghost">收起</button></div>
+              <pre class="logbox" id="agentLogPre">…</pre>
+            </section>
+          </div>
+
+          <div class="settingsPane hidden" data-settings-pane="control" id="secControl">
+            <div class="moduleHead">
+              <div class="eyebrow">Control Plane</div>
+              <div class="moduleTitle">控制端</div>
+              <div class="moduleDesc">隧道、MCP 集成、配置迁移与会话治理策略。</div>
+            </div>
+
+            <section class="card">
+              <div class="cardTitle">节点隧道（visitor）<span class="dim">全自动运行；同步节点时自动更新</span></div>
+              <div id="visitorState" class="dim">…</div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnVisToggle" class="mini">停用隧道</button>
+                <button id="btnVisLog" class="mini ghost">查看日志</button>
+              </div>
+            </section>
+
+            <section class="card hidden" id="visitorLogCard">
+              <div class="cardTitle">visitor 日志尾部<span style="flex:1"></span><button id="btnVisLogClose" class="mini ghost">收起</button></div>
+              <pre class="logbox" id="visitorLogPre">…</pre>
+            </section>
+
+            <section class="card" id="mcpCard">
+              <div class="cardTitle">MCP 集成 <span class="dim">本机 opencode</span><span style="flex:1"></span><button id="btnMcpRefresh" class="mini ghost">刷新状态</button></div>
+              <div id="mcpStatus" class="dim">…</div>
+              <div class="fl" style="margin-top:6px;"><label>配置路径</label><input id="inpMcpPath" class="grow" type="text" title="留空=自动探测（$OPENCODE_CONFIG → ~/.config/opencode/opencode.jsonc）；填写=使用并记住该路径" placeholder="留空=自动探测；也可手动指定 opencode.jsonc 路径" /></div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnMcpWrite" class="mini" title="写入/更新 node-ctl MCP；自动移除 fleet 明文条目；写入前自动备份；重启 opencode 后生效">写入/更新 MCP 配置</button>
+                <button id="btnMcpWriteKeep" class="mini ghost" title="保留现有 fleet 条目">保留 fleet 写入</button>
+                <button id="btnMcpRemove" class="mini ghost" title="移除 node-ctl 条目（写入前自动备份）">移除 MCP 配置</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="cardTitle">控制端配置备份<span class="dim">导出 / 导入用于备份或迁移到其他设备</span></div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnMasterExport" class="mini ghost" title="把控制端配置打包到剪贴板（含凭据，请勿外发），用于备份或迁移到其他设备">导出到剪贴板</button>
+                <button id="btnMasterImport" class="mini ghost" title="从剪贴板导入控制端配置并自动同步节点">从剪贴板导入</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="cardTitle">会话管理</div>
+              <div class="fl"><label class="withCheck" for="inpAutoCompact"><input id="inpAutoCompact" type="checkbox" /> 占用达 80% 时，派发前自动压缩（本机作为主控）</label></div>
+              <div class="fl"><label class="withCheck" for="inpCleanupInbound"><input id="inpCleanupInbound" type="checkbox" /> 本机作为节点：App 退出时清理入站会话（保留关键日志）</label></div>
+              <div class="cardDesc" style="margin:4px 0 0;">入站会话 = 其他设备发给本机的对话上下文；清理仅保留一行元数据日志（含末条回执摘要），不可恢复。两项默认关闭。</div>
+            </section>
+          </div>
+
+          <div class="settingsPane hidden" data-settings-pane="bot" id="secBot">
+            <div class="moduleHead">
+              <div class="eyebrow">Remote Access</div>
+              <div class="moduleTitle">Telegram Bot</div>
+              <div class="moduleDesc">轮换 Bot Token 并重启远程连接。</div>
+            </div>
+            <section class="card">
+              <div class="cardTitle">Bot Token 轮换</div>
+              <div class="cardDesc">更新 Telegram Bot token 并重启远程连接。</div>
+              <div class="btns" style="margin-bottom:0;">
+                <input id="inpToken" class="grow" type="password" placeholder="粘贴新 bot token" autocomplete="off" />
+                <button id="btnToken" class="mini">更新并重启</button>
+              </div>
+            </section>
+          </div>
+
+          <div class="settingsPane hidden" data-settings-pane="app" id="secApp">
+            <div class="moduleHead">
+              <div class="eyebrow">Application</div>
+              <div class="moduleTitle">应用与更新</div>
+              <div class="moduleDesc">检查版本并从 GitHub 拉取最新源码。</div>
+            </div>
+            <section class="card">
+              <div class="cardTitle">版本与更新<span style="flex:1"></span><button id="btnUpdCheck" class="mini ghost">检查更新</button></div>
+              <div id="updStatus" class="dim">…</div>
+              <div class="btns" style="margin-top:8px; margin-bottom:0;">
+                <button id="btnUpdApply" class="mini" disabled title="从 GitHub 拉取最新源码（运行时+界面）覆盖本机；数据文件不受影响">立即更新</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- ======================= 主控 ======================= -->
+        <section data-tab-content="master" class="hidden">
+          <div class="pageIntro">
+            <div>
+              <div class="eyebrow">Fleet Control</div>
+              <div class="lede">管理已注册节点，编排远程任务并治理会话上下文。</div>
+            </div>
+            <div class="actions">
+              <button id="btnNodeSync">同步节点</button>
+              <button id="btnNodeListRefresh" class="ghost">刷新列表</button>
+              <button id="btnNodePrune" class="ghost">清理失效</button>
+            </div>
+          </div>
+
+          <section class="card">
+            <div class="cardTitle">节点管理 <span class="dim">在线状态与生命周期</span></div>
+            <div id="nodeList" class="dim">（点击「同步节点」自动从注册中心拉取）</div>
+          </section>
+
+          <section class="card">
+            <div class="cardTitle">编排配置 <span class="dim">opencode-fleet</span></div>
+            <div class="cardDesc">生成可直接粘贴到 opencode.jsonc 的 fleet 配置片段。</div>
+            <div class="btns" style="margin-bottom:0;">
+              <button id="btnFleet" class="mini">生成 fleet 配置片段</button>
+            </div>
+          </section>
+
+          <section class="card hidden" id="fleetCard">
+            <div class="cardTitle">fleet 配置片段<span style="flex:1"></span><button id="btnFleetClose" class="mini ghost">收起</button></div>
+            <pre class="logbox" id="fleetPre"></pre>
+          </section>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <div id="opline">就绪</div>
+        <div class="kbdHints"><kbd>Ctrl</kbd><kbd>K</kbd> 命令 <kbd>Ctrl</kbd><kbd>1–3</kbd> 切换</div>
+      </footer>
     </div>
+  </div>
 
-    <section class="card hidden" id="diagCard">
-      <div class="cardTitle">诊断结果<span style="flex:1"></span><button id="btnDiagClose" class="mini ghost">收起</button></div>
-      <div id="diagList"></div>
-    </section>
-
-    <section class="card hidden" id="logCard">
-      <div class="cardTitle">
-        <span>日志尾部</span><span id="logFile" class="dim"></span>
-        <span style="flex:1"></span>
-        <button id="btnLogRefresh" class="mini ghost">刷新</button>
-        <button id="btnLogOpen" class="mini ghost">目录</button>
-        <button id="btnLogClose" class="mini ghost">收起</button>
-      </div>
-      <pre class="logbox" id="logPre">…</pre>
-    </section>
-  </section>
-
-  <!-- ======================= 设置（本机设置） ======================= -->
-  <section data-tab-content="settings" class="hidden">
-    <div class="dim" style="font-size:12px; margin-bottom:8px;">本机设置：节点接入与身份、控制端隧道与 MCP、Telegram Bot</div>
-    <div class="groupLabel">— 本机节点 —</div>
-    <section class="card">
-      <div class="cardTitle">Hub 连接 <span class="dim">（本机节点与控制端共用，保存会同步两处）</span></div>
-      <div class="fl"><label>Hub 地址</label><input id="inpHubAddr" class="grow" type="text" placeholder="例如 hub.example.com 或 1.2.3.4" /><input id="inpHubPort" class="short" type="number" placeholder="18080" /></div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnHubSave" class="mini">保存并同步</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">节点配置（本机加入网络）</div>
-      <div class="fl"><label>节点名</label><input id="inpNodeName" class="grow" type="text" placeholder="显示名，可随时修改" /></div>
-      <div class="fl"><label>注册 id</label><span id="nodeIdChip" class="idchip">…</span></div>
-      <div class="fl"><label>加入密钥</label><input id="inpJoinKey" class="grow" type="text" placeholder="一次性密钥（或 密钥.指纹 组合串）" /></div>
-      <div class="fl"><label>opencode</label><input id="inpOcPort" class="short" type="number" placeholder="端口 4096" title="opencode serve 端口（默认 4096，仅本机回环与隧道可达，详见 docs/DEPLOY.md 端口说明）" /><button id="btnPassOpen" class="mini ghost" title="修改 opencode 密码（需验证原网络共用密码）">⚙ 修改密码</button><span id="ocPassHint" class="dim"></span></div>
-      <div class="fl"><label>agent 端口</label><input id="inpAgentPort" class="short" type="number" placeholder="41999" title="node-agent 控制 API 端口（默认 41999，仅绑定 127.0.0.1，经隧道供控制端使用）" /></div>
-      <div class="fl"><label>frpc 路径</label><input id="inpFrpc" class="grow" type="text" placeholder="bin/frpc.exe" /></div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnNodeSave" class="mini">保存配置</button>
-        <button id="btnNodeStart" class="mini" title="启动节点 agent；并自动确保隧道在线">启动节点</button>
-        <button id="btnNodeStop" class="mini ghost">停止节点</button>
-        <button id="btnNodeRefresh" class="mini ghost">刷新状态</button>
-        <button id="btnNodeReset" class="mini ghost" title="换设备或更换节点名时使用：删除本机注册状态，下次启动将用新配置重新注册">重置身份</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">节点状态</div>
-      <div id="nodeState" class="dim">…</div>
-    </section>
-
-    <div class="btns">
-      <button id="btnAgentLog" class="ghost">查看 agent 日志</button>
-      <button id="btnAgentLogRefresh" class="mini ghost hidden">刷新</button>
-    </div>
-
-    <section class="card hidden" id="agentLogCard">
-      <div class="cardTitle">agent 日志尾部<span style="flex:1"></span><button id="btnAgentLogClose" class="mini ghost">收起</button></div>
-      <pre class="logbox" id="agentLogPre">…</pre>
-    </section>
-
-    <div class="groupLabel">— 控制端 —</div>
-
-    <section class="card">
-      <div class="cardTitle">节点隧道（visitor）<span class="dim">（全自动运行；同步节点时自动更新）</span></div>
-      <div id="visitorState" class="dim">…</div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnVisToggle" class="mini">停用隧道</button>
-        <button id="btnVisLog" class="mini ghost">查看日志</button>
-      </div>
-    </section>
-
-    <section class="card hidden" id="visitorLogCard">
-      <div class="cardTitle">visitor 日志尾部<span style="flex:1"></span><button id="btnVisLogClose" class="mini ghost">收起</button></div>
-      <pre class="logbox" id="visitorLogPre">…</pre>
-    </section>
-
-    <section class="card" id="mcpCard">
-      <div class="cardTitle">MCP 集成（本机 opencode）<span style="flex:1"></span><button id="btnMcpRefresh" class="mini ghost">刷新状态</button></div>
-      <div id="mcpStatus" class="dim">…</div>
-      <div class="fl" style="margin-top:6px;"><label>配置路径</label><input id="inpMcpPath" class="grow" type="text" title="留空=自动探测（$OPENCODE_CONFIG → ~/.config/opencode/opencode.jsonc）；填写=使用并记住该路径" placeholder="留空=自动探测；也可手动指定 opencode.jsonc 路径" /></div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnMcpWrite" class="mini" title="写入/更新 node-ctl MCP；自动移除 fleet 明文条目；写入前自动备份；重启 opencode 后生效">写入/更新 MCP 配置</button>
-        <button id="btnMcpWriteKeep" class="mini ghost" title="保留现有 fleet 条目">保留 fleet 写入</button>
-        <button id="btnMcpRemove" class="mini ghost" title="移除 node-ctl 条目（写入前自动备份）">移除 MCP 配置</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">控制端配置备份<span class="dim">（导出 / 导入用于备份或迁移到其他设备）</span></div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnMasterExport" class="mini ghost" title="把控制端配置打包到剪贴板（含凭据，请勿外发），用于备份或迁移到其他设备">导出到剪贴板</button>
-        <button id="btnMasterImport" class="mini ghost" title="从剪贴板导入控制端配置并自动同步节点">从剪贴板导入</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">会话管理</div>
-      <div class="fl" style="align-items:flex-start;"><label style="min-width:0; line-height:1.7;"><input id="inpAutoCompact" type="checkbox" /> 占用达 80% 时，派发前自动压缩（本机作为主控）</label></div>
-      <div class="fl" style="align-items:flex-start;"><label style="min-width:0; line-height:1.7;"><input id="inpCleanupInbound" type="checkbox" /> 本机作为节点：App 退出时清理入站会话（保留关键日志）</label></div>
-      <div class="dim" style="font-size:12px; margin-top:2px;">入站会话 = 其他设备发给本机的对话上下文；清理仅保留一行元数据日志（含末条回执摘要），不可恢复。两项默认关闭。</div>
-    </section>
-
-    <div class="groupLabel">— Telegram Bot —</div>
-
-    <section class="card">
-      <div class="cardTitle">Bot Token 轮换</div>
-      <div class="dim" style="font-size:12px; margin-bottom:6px;">更新 Telegram Bot token 并重启远程连接</div>
-      <div class="btns" style="margin-bottom:0;">
-        <input id="inpToken" class="grow" type="password" placeholder="粘贴新 bot token" autocomplete="off" />
-        <button id="btnToken" class="mini">更新并重启</button>
-      </div>
-    </section>
-
-    <div class="groupLabel">— 应用 —</div>
-
-    <section class="card">
-      <div class="cardTitle">版本与更新<span style="flex:1"></span><button id="btnUpdCheck" class="mini ghost">检查更新</button></div>
-      <div id="updStatus" class="dim">…</div>
-      <div class="btns" style="margin-top:8px; margin-bottom:0;">
-        <button id="btnUpdApply" class="mini" disabled title="从 GitHub 拉取最新源码（运行时+界面）覆盖本机；数据文件不受影响">立即更新</button>
-      </div>
-    </section>
-  </section>
-
-  <!-- ======================= 主控（多设备操作） ======================= -->
-  <section data-tab-content="master" class="hidden">
-    <div class="dim" style="font-size:12px; margin-bottom:8px;">多设备操作：节点管理与 fleet 编排</div>
-
-    <section class="card">
-      <div class="cardTitle">节点管理</div>
-      <div class="btns" style="margin-bottom:8px;">
-        <button id="btnNodeSync" class="mini">同步节点（自动配置）</button>
-        <button id="btnNodeListRefresh" class="mini ghost">刷新列表</button>
-        <button id="btnNodePrune" class="mini ghost">清理失效节点</button>
-      </div>
-      <div id="nodeList" class="dim">（点击「同步节点」自动从注册中心拉取）</div>
-    </section>
-
-    <section class="card">
-      <div class="cardTitle">编排（opencode-fleet）</div>
-      <div class="btns" style="margin-bottom:0;">
-        <button id="btnFleet" class="mini">生成 fleet 配置片段</button>
-      </div>
-    </section>
-
-    <section class="card hidden" id="fleetCard">
-      <div class="cardTitle">fleet 配置片段<span style="flex:1"></span><button id="btnFleetClose" class="mini ghost">收起</button></div>
-      <pre class="logbox" id="fleetPre"></pre>
-    </section>
-  </section>
-
-  <div id="setupOverlay" class="overlay hidden">
+  <div id="setupOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="首次配置向导">
     <div class="setupCard">
-      <div class="setupTitle">首次使用 · 快速配置</div>
-      <div class="setupSub">将本机接入 Aoi mesh 网络。需要三样信息：Hub 地址、一次性加入密钥（启用 TLS 时形如 <b>密钥.指纹</b>）、网络统一的 opencode 密码——获取与设置方式见 kit 内 opencode-mesh/docs/DEPLOY.md「接入节点」。入网后即具备全部控制能力。</div>
+      <div class="setupSteps">
+        <div class="setupStep"><b>01 · 连接</b><span>Hub 地址与一次性密钥</span></div>
+        <div class="setupStep"><b>02 · 身份</b><span>节点名与注册信息</span></div>
+        <div class="setupStep"><b>03 · 安全</b><span>网络统一的访问密码</span></div>
+      </div>
+      <div class="setupHead">
+        <img class="setupAvatar" src="assets/Aoi.png" alt="" />
+        <div>
+          <div class="setupTitle">首次使用 · 快速配置</div>
+          <div class="setupSub">将本机接入 Aoi mesh 网络。需要三样信息：Hub 地址、一次性加入密钥（启用 TLS 时形如 <b>密钥.指纹</b>）、网络统一的 opencode 密码——获取与设置方式见 kit 内 opencode-mesh/docs/DEPLOY.md「接入节点」。入网后即具备全部控制能力。</div>
+        </div>
+      </div>
       <div class="fl"><label>节点名</label><input id="setupName" class="grow" type="text" placeholder="例如 dev-node-2" /></div>
       <div class="fl"><label>Hub 地址</label><input id="setupHubAddr" class="grow" type="text" placeholder="Hub 公网 IP 或域名，例如 1.2.3.4" /><input id="setupHubPort" class="short" type="number" placeholder="18080" title="Hub 注册中心端口（默认 18080）" /></div>
       <div class="fl"><label>加入密钥</label><input id="setupJoinKey" class="grow" type="text" placeholder="一次性密钥（或 密钥.指纹 组合串）" /></div>
@@ -300,7 +781,7 @@
     </div>
   </div>
 
-  <div id="passOverlay" class="overlay hidden">
+  <div id="passOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="修改 opencode 密码">
     <div class="setupCard">
       <div class="setupTitle">修改 opencode 密码</div>
       <div class="setupSub">需先验证原网络共用密码（各节点统一的 opencode 密码）。如各节点密码统一，修改后请逐节点同步保持一致。</div>
@@ -315,7 +796,23 @@
     </div>
   </div>
 
-  <div id="opline">就绪</div>
+  <div id="cmdk" class="overlay cmdkOverlay hidden" role="dialog" aria-modal="true" aria-label="命令面板">
+    <div class="cmdk">
+      <div class="cmdkSearch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" />
+        </svg>
+        <input id="cmdkInput" type="text" placeholder="搜索页面或操作…" aria-label="搜索命令" autocomplete="off" spellcheck="false" />
+        <kbd>Esc</kbd>
+      </div>
+      <div id="cmdkList" class="cmdkList"></div>
+      <div class="cmdkFoot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+        <span><kbd>Enter</kbd> 执行</span>
+        <span><kbd>Ctrl</kbd><kbd>K</kbd> 关闭</span>
+      </div>
+    </div>
+  </div>
 
 <script>
   const { ipcRenderer } = require("electron");
@@ -345,9 +842,16 @@
   document.querySelectorAll("#tabs .tab").forEach((btn) => {
     btn.onclick = () => switchTab(btn.dataset.tab);
   });
+  const TAB_TITLES = { local: "本机概览", master: "主控台", settings: "设置" };
   function switchTab(name) {
     document.querySelectorAll("#tabs .tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
     document.querySelectorAll("[data-tab-content]").forEach((s) => s.classList.toggle("hidden", s.dataset.tabContent !== name));
+    if (TAB_TITLES[name]) {
+      const t = $("title");
+      if (t) t.textContent = TAB_TITLES[name];
+      const c = $("content");
+      if (c) c.scrollTop = 0;
+    }
     if (name === "settings") { loadNodeForm(); loadControlTab(); }
     if (name === "master") loadMasterTab();
   }
@@ -355,7 +859,15 @@
   /* ---------------- 本机 ---------------- */
   function render(s) {
     $("host").textContent = s.hostname + " · " + new Date().toLocaleTimeString();
-    $("dot").style.background = s.bot.running ? "#34c759" : "#8a8f98";
+    $("dot").style.background = s.bot.running ? "#4ade80" : "#6d7585";
+    const sideDot = $("sideDot");
+    if (sideDot) sideDot.classList.toggle("on", !!s.bot.running);
+    const sideText = $("sideText");
+    if (sideText) {
+      sideText.textContent = s.bot.running
+        ? (s.opencode?.healthy ? "opencode 正常 · 远程已连接" : "远程已连接 · opencode 未运行")
+        : "远程连接已停止";
+    }
     const bot = $("vBot");
     bot.textContent = s.bot.running
       ? `已开启${s.bot.uptime ? " · " + s.bot.uptime : ""}${s.bot.pid ? " · PID " + s.bot.pid : ""}`
@@ -1247,6 +1759,128 @@
     await ipcRenderer.invoke("app:quit");
   };
 
+  /* ---------------- 命令面板 / 快捷键 / 设置模块 ---------------- */
+  function switchSettingsPane(pane) {
+    document.querySelectorAll("#settingsNav button").forEach((b) => b.classList.toggle("active", b.dataset.pane === pane));
+    document.querySelectorAll("[data-settings-pane]").forEach((p) => p.classList.toggle("hidden", p.dataset.settingsPane !== pane));
+    const c = $("content");
+    if (c) c.scrollTop = 0;
+  }
+
+  function gotoSettings(pane) {
+    switchTab("settings");
+    switchSettingsPane(pane);
+  }
+
+  const cmdkCommands = [
+    { group: "导航", label: "本机概览", hint: "Ctrl 1", run: () => switchTab("local") },
+    { group: "导航", label: "主控台", hint: "Ctrl 2", run: () => switchTab("master") },
+    { group: "导航", label: "设置", hint: "Ctrl 3", run: () => switchTab("settings") },
+    { group: "本机", label: "一键诊断", hint: "本机", run: () => { switchTab("local"); setTimeout(() => $("btnDiag") && $("btnDiag").click(), 30); } },
+    { group: "本机", label: "查看本机日志", hint: "本机", run: () => { switchTab("local"); setTimeout(() => $("btnLogs") && $("btnLogs").click(), 30); } },
+    { group: "本机", label: "重启远程连接", hint: "操作", run: () => $("btnRestart") && $("btnRestart").click() },
+    { group: "主控", label: "刷新节点列表", hint: "主控", run: () => { switchTab("master"); setTimeout(() => $("btnNodeListRefresh") && $("btnNodeListRefresh").click(), 30); } },
+    { group: "主控", label: "生成 fleet 配置片段", hint: "主控", run: () => { switchTab("master"); setTimeout(() => $("btnFleet") && $("btnFleet").click(), 30); } },
+    { group: "设置", label: "本机节点与身份", hint: "设置", run: () => gotoSettings("node") },
+    { group: "设置", label: "控制端隧道与 MCP", hint: "设置", run: () => gotoSettings("control") },
+    { group: "设置", label: "Telegram Bot", hint: "设置", run: () => gotoSettings("bot") },
+    { group: "设置", label: "应用与更新", hint: "设置", run: () => gotoSettings("app") },
+    { group: "设置", label: "写入 MCP 配置", hint: "操作", run: () => { switchTab("settings"); setTimeout(() => $("btnMcpWrite") && $("btnMcpWrite").click(), 30); } },
+    { group: "设置", label: "检查应用更新", hint: "操作", run: () => { switchTab("settings"); setTimeout(() => $("btnUpdCheck") && $("btnUpdCheck").click(), 30); } },
+    { group: "应用", label: "退出应用", hint: "退出", run: () => $("btnQuit") && $("btnQuit").click() },
+  ];
+  let cmdkActive = 0;
+  let cmdkFiltered = [];
+
+  function renderCmdk() {
+    const list = $("cmdkList");
+    if (!list) return;
+    const q = ($("cmdkInput")?.value || "").trim().toLowerCase();
+    cmdkFiltered = cmdkCommands.filter((c) => !q || (c.group + " " + c.label).toLowerCase().includes(q));
+    if (cmdkActive >= cmdkFiltered.length) cmdkActive = Math.max(0, cmdkFiltered.length - 1);
+    list.textContent = "";
+    if (!cmdkFiltered.length) {
+      const empty = document.createElement("div");
+      empty.className = "cmdEmpty";
+      empty.textContent = "没有匹配的命令";
+      list.append(empty);
+      return;
+    }
+    let lastGroup = "";
+    cmdkFiltered.forEach((c, i) => {
+      if (c.group !== lastGroup) {
+        const g = document.createElement("div");
+        g.className = "cmdGroup";
+        g.textContent = c.group;
+        list.append(g);
+        lastGroup = c.group;
+      }
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "cmdItem" + (i === cmdkActive ? " active" : "");
+      const dot = document.createElement("span");
+      dot.className = "cmdDot";
+      const label = document.createElement("span");
+      label.textContent = c.label;
+      const hint = document.createElement("span");
+      hint.className = "cmdkHint";
+      hint.textContent = c.hint || "";
+      b.append(dot, label, hint);
+      b.onclick = () => runCmdk(i);
+      list.append(b);
+    });
+  }
+
+  function openCmdk() {
+    const el = $("cmdk");
+    if (!el) return;
+    el.classList.remove("hidden");
+    $("cmdkInput").value = "";
+    cmdkActive = 0;
+    renderCmdk();
+    setTimeout(() => $("cmdkInput").focus(), 20);
+  }
+  function closeCmdk() {
+    const el = $("cmdk");
+    if (el) el.classList.add("hidden");
+  }
+  function runCmdk(i) {
+    const c = cmdkFiltered[i];
+    if (!c) return;
+    closeCmdk();
+    setTimeout(() => c.run(), 20);
+  }
+
+  if ($("cmdkBtn")) $("cmdkBtn").onclick = openCmdk;
+  if ($("cmdk")) {
+    $("cmdk").onclick = (e) => { if (e.target === $("cmdk")) closeCmdk(); };
+    $("cmdkInput").addEventListener("input", () => { cmdkActive = 0; renderCmdk(); });
+    $("cmdkInput").addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); cmdkActive = Math.min(cmdkActive + 1, cmdkFiltered.length - 1); renderCmdk(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); cmdkActive = Math.max(cmdkActive - 1, 0); renderCmdk(); }
+      else if (e.key === "Enter") { e.preventDefault(); runCmdk(cmdkActive); }
+      else if (e.key === "Escape") { e.preventDefault(); closeCmdk(); }
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if ($("cmdk").classList.contains("hidden")) openCmdk(); else closeCmdk();
+      return;
+    }
+    if (mod && (e.key === "1" || e.key === "2" || e.key === "3")) {
+      e.preventDefault();
+      switchTab({ "1": "local", "2": "master", "3": "settings" }[e.key]);
+      return;
+    }
+    if (e.key === "Escape" && !$("cmdk").classList.contains("hidden")) closeCmdk();
+  });
+
+  document.querySelectorAll("#settingsNav button").forEach((btn) => {
+    btn.onclick = () => switchSettingsPane(btn.dataset.pane);
+  });
+
   /* ---------------- 启动 ---------------- */
   refresh();
   setInterval(refresh, 8000);
@@ -1263,6 +1897,11 @@
     const sec = document.querySelector('[data-tab-content="master"]');
     if (sec && !sec.classList.contains("hidden")) await updateMasterBadges();
   }, 8000);
+  // 启动时避免首个导航按钮带键盘焦点环；键盘用户仍可用 Tab 进入导航。
+  setTimeout(() => {
+    const ae = document.activeElement;
+    if (ae && ae !== document.body && ae.tagName === "BUTTON") ae.blur();
+  }, 0);
 </script>
 </body>
 </html>

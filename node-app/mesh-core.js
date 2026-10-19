@@ -1126,7 +1126,7 @@ function sessionPolicySet(root, patch = {}) {
   return sessionPolicyGet(root);
 }
 
-/** 退出清理（可选，默认关）：删除本机上由其他设备创建的入站会话（标题前缀 opencode-mesh）；
+/** 退出清理（可选，默认关）：删除本机上由其他设备创建的入站会话（标题前缀 Aoi mesh，兼容旧前缀 opencode-mesh）；
  *  仅保留关键日志（元数据 + 末条回执摘要）到 node-agent/data/mesh-session-log.jsonl */
 async function cleanupInboundSessions(root) {
   try {
@@ -1144,7 +1144,8 @@ async function cleanupInboundSessions(root) {
     if (list.status !== 200 || !Array.isArray(list.json)) {
       return { ok: false, error: "读取本机会话失败（opencode 可能未运行）" };
     }
-    const targets = list.json.filter((s) => typeof s?.title === "string" && s.title.startsWith("opencode-mesh "));
+    const targets = list.json.filter((s) => typeof s?.title === "string"
+      && (s.title.startsWith("Aoi mesh ") || s.title.startsWith("opencode-mesh ")));
     if (!targets.length) return { ok: true, deleted: 0, total: 0 };
     const lib = nodeCtlLib(root);
     const logPath = path.join(agentDir(root), "data", "mesh-session-log.jsonl");
@@ -1164,7 +1165,7 @@ async function cleanupInboundSessions(root) {
       } catch {}
       const line = JSON.stringify({
         sessionId: s.id,
-        from: s.title.replace(/^opencode-mesh\s+/, ""),
+        from: s.title.replace(/^(?:Aoi mesh|opencode-mesh)\s+/, ""),
         deletedAt: new Date().toISOString(),
         createdAt: s.time?.created || null,
         tokens: s.tokens || null,

@@ -409,7 +409,7 @@ async function compactSession(configPath, config, nodeName, opts = {}) {
   const digest = parseDigestBlock(text1);
   if (!digest) return { ok: false, error: "digest 块不合规，已放弃轮换（会话保持原样）" };
 
-  const created = await opencodeApi(nodeCfg, "POST", "/session", { title: `opencode-mesh ${from}` }, 15000);
+  const created = await opencodeApi(nodeCfg, "POST", "/session", { title: `Aoi mesh ${from}` }, 15000);
   if (created.status !== 200 || !created.json?.id) return { ok: false, error: `创建新会话失败（HTTP ${created.status}）` };
   const newSessionId = created.json.id;
 
@@ -536,7 +536,7 @@ async function dispatchToNode(configPath, config, nodeName, body, opts = {}) {
     if (probe.status !== 200) sessionId = null;
   }
   if (!sessionId) {
-    const created = await opencodeApi(nodeCfg, "POST", "/session", { title: `opencode-mesh ${from}` }, 15000);
+    const created = await opencodeApi(nodeCfg, "POST", "/session", { title: `Aoi mesh ${from}` }, 15000);
     if (created.status !== 200 || !created.json?.id) {
       throw new Error(`创建会话失败: HTTP ${created.status} ${String(created.text).slice(0, 120)}`);
     }
