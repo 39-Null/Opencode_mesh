@@ -741,17 +741,17 @@
           </div>
 
           <section class="card">
+            <div class="cardTitle">节点管理 <span class="dim">在线状态与生命周期</span></div>
+            <div id="nodeList" class="dim">（点击「同步节点」自动从注册中心拉取）</div>
+          </section>
+
+          <section class="card">
             <div class="cardTitle">新设备接入 <span class="dim">一次性快速配置</span></div>
             <div class="cardDesc">在 Hub 创建一次性加入密钥，并把 Hub 地址、端口与注册配置复制到剪贴板。新设备首次启动会自动读取并预填。</div>
             <div class="btns" style="margin-bottom:0; align-items:center;">
               <button id="btnQuickConfig" class="mini">生成并复制配置</button>
               <label class="checkLabel" for="inpQuickIncludePass"><input id="inpQuickIncludePass" type="checkbox" /> 包含网络统一密码（敏感）</label>
             </div>
-          </section>
-
-          <section class="card">
-            <div class="cardTitle">节点管理 <span class="dim">在线状态与生命周期</span></div>
-            <div id="nodeList" class="dim">（点击「同步节点」自动从注册中心拉取）</div>
           </section>
 
           <section class="card">
@@ -1460,7 +1460,7 @@
       const isLocal = !!localNodeId && (n.id === localNodeId || n.name === localNodeId);
       if (isLocal) {
         const localBadge = document.createElement("span");
-        localBadge.className = "badge";
+        localBadge.className = "badge ok";
         localBadge.textContent = "本机";
         tail.push(localBadge);
       }
