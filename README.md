@@ -2,6 +2,8 @@
 
 多设备 [opencode](https://opencode.ai) 协作网络：把多台装有 opencode 的机器组成一个可远程调度、互相协作的私有网络。手机或任意控制端可随时启停各设备的 opencode、下发任务并回收结果。
 
+当前版本：**v1.5.1**（变更记录见 [CHANGELOG.md](CHANGELOG.md)）。
+
 ## 特性
 
 - **脚本优先**：入网、隧道、启停、派发均由参数化脚本/CLI 完成；Electron App 是可选的图形层，headless 设备无需图形环境
@@ -80,6 +82,7 @@ npm start
 | [部署与运维](docs/DEPLOY.md) | 架构与数据流、一键化部署、App 安装/卸载、配置字段逐项教学、升级、故障排查 |
 | [使用手册](docs/USAGE.md) | App 各页说明、典型操作、CLI 参考、常见问题 |
 | [消息协议](docs/PROTOCOL.md) | 设备间任务信封、回执块、澄清块与信任边界 |
+| [版本记录](CHANGELOG.md) | 各版本新增、改进、修复与升级说明 |
 | [待办与计划](docs/TODO.md) | 阶段性成果概要与后续计划 |
 
 ## 多设备代码同步（Git 工作流）

@@ -416,28 +416,46 @@ function localAppVersion() {
   }
 }
 
-/** Electron net 请求（自动跟随系统代理；跟随 3xx 一次兜底） */
-function netRequest(url, { timeoutMs = 20000 } = {}) {
+/** 把 HTTP 状态与响应体压缩成可读错误（避免出现 error: undefined） */
+function httpErrorDetail(status, text) {
+  let detail = "";
+  try {
+    const j = JSON.parse(String(text || ""));
+    detail = j.message || j.error || j.documentation_url || "";
+  } catch {}
+  if (!detail) detail = String(text || "").replace(/\s+/g, " ").trim().slice(0, 180);
+  return `HTTP ${status}${detail ? " · " + detail : ""}`;
+}
+
+/** Electron net 请求（自动跟随系统代理；跟随 3xx，带错误状态与响应摘要） */
+function netRequest(url, { timeoutMs = 20000, redirects = 5 } = {}) {
   return new Promise((resolve) => {
     let req;
-    try { req = net.request(url); } catch (e) { return resolve({ ok: false, error: e.message }); }
+    try { req = net.request(url); } catch (e) { return resolve({ ok: false, error: e?.message || String(e) }); }
     let data = "";
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
     const timer = setTimeout(() => { try { req.abort(); } catch {} finish({ ok: false, error: "请求超时" }); }, timeoutMs);
     req.on("response", (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (res.statusCode >= 300 && res.statusCode < 400) {
         clearTimeout(timer);
-        const loc = res.headers.location;
+        const loc = Array.isArray(res.headers.location) ? res.headers.location[0] : res.headers.location;
         try { req.abort(); } catch {}
-        const next = Array.isArray(loc) ? loc[0] : loc;
-        netRequest(next, { timeoutMs }).then(finish);
+        if (!loc) return finish({ ok: false, status: res.statusCode, error: `HTTP ${res.statusCode} 重定向缺少 Location` });
+        if (redirects <= 0) return finish({ ok: false, status: res.statusCode, error: `重定向次数过多（HTTP ${res.statusCode}）` });
+        let next = loc;
+        try { next = new URL(loc, url).toString(); } catch {}
+        netRequest(next, { timeoutMs, redirects: redirects - 1 }).then(finish);
         return;
       }
       res.on("data", (c) => (data += c));
-      res.on("end", () => { clearTimeout(timer); finish({ ok: res.statusCode < 400, status: res.statusCode, text: data }); });
+      res.on("end", () => {
+        clearTimeout(timer);
+        const ok = res.statusCode >= 200 && res.statusCode < 400;
+        finish({ ok, status: res.statusCode, text: data, error: ok ? "" : httpErrorDetail(res.statusCode, data) });
+      });
     });
-    req.on("error", (e) => { clearTimeout(timer); finish({ ok: false, error: e.message }); });
+    req.on("error", (e) => { clearTimeout(timer); finish({ ok: false, error: e?.message || String(e) }); });
     req.end();
   });
 }
@@ -467,47 +485,150 @@ function netDownload(url, dest, { timeoutMs = 120000 } = {}) {
   });
 }
 
-/** 网络受限回退：系统 curl + 现有 bot 代理配置（mihomo 等） */
-async function curlFallback(args, timeoutMs) {
-  const ex = await execFileP(IS_WIN ? "curl.exe" : "curl", args, timeoutMs);
-  if (ex.err) return null;
-  return ex.stdout + ex.stderr;
+/** 用 curl 取文本/下载文件；显式区分直连与代理，并保留真实错误/状态 */
+async function curlFetch(url, { proxy = "", timeoutMs = 30000, output = "" } = {}) {
+  const marker = "__MESH_HTTP_STATUS__";
+  const args = ["-L", "--silent", "--show-error", "--max-time", String(Math.max(1, Math.round(timeoutMs / 1000)))];
+  if (proxy) args.push("--proxy", proxy);
+  else args.push("--noproxy", "*");
+  if (output) args.push("-o", output);
+  args.push("-w", `\n${marker}:%{http_code}`, url);
+  const ex = await execFileP(IS_WIN ? "curl.exe" : "curl", args, timeoutMs + 5000);
+  const errText = String(ex.stderr || "").trim();
+  if (ex.err && /ENOENT/.test(String(ex.err.message || ex.err))) return { ok: false, error: "未找到 curl" };
+  const idx = ex.stdout.lastIndexOf(marker + ":");
+  const status = idx >= 0 ? Number(ex.stdout.slice(idx + marker.length + 1).trim()) || 0 : 0;
+  if (output) {
+    if (ex.err) {
+      try { fs.rmSync(output, { force: true }); } catch {}
+      return { ok: false, error: errText || ex.err.message || String(ex.err) };
+    }
+    if (status && (status < 200 || status >= 400)) {
+      let snippet = "";
+      try { snippet = fs.readFileSync(output, "utf8").slice(0, 300); } catch {}
+      try { fs.rmSync(output, { force: true }); } catch {}
+      return { ok: false, status, error: httpErrorDetail(status, snippet) };
+    }
+    try {
+      const size = fs.statSync(output).size;
+      if (size > 0) return { ok: true, status, size };
+    } catch {}
+    return { ok: false, status, error: "curl 返回空文件" };
+  }
+  const text = idx >= 0 ? ex.stdout.slice(0, idx).replace(/\r?\n$/, "") : ex.stdout;
+  if (status >= 200 && status < 400) return { ok: true, status, text };
+  if (status) return { ok: false, status, text, error: httpErrorDetail(status, text) };
+  return { ok: false, error: errText || ex.err?.message || String(ex.err) || "curl 请求失败" };
 }
 
-async function fetchJsonWithFallback(url) {
-  const r = await netRequest(url);
+/** 文本请求回退链：系统网络 → bot 代理（可达时）→ curl 直连（每步保留真实错误） */
+async function fetchTextWithFallback(url, { timeoutMs = 20000 } = {}) {
+  const errors = [];
+  const r = await netRequest(url, { timeoutMs });
   if (r.ok) return r;
+  errors.push(`系统网络：${r.error || (r.status ? `HTTP ${r.status}` : "失败")}`);
+
   const proxy = curlProxyArg();
-  const base = ["-L", "--fail", "--silent", "--show-error"];
-  const out = await curlFallback([...base, "--proxy", proxy, url], 30000);
-  if (out === null) return { ok: false, error: `请求失败（${r.error}），curl 回退（代理 ${proxy}）亦失败` };
-  return { ok: true, text: out };
+  const proxyEp = proxyEndpoint();
+  let proxyAlive = false;
+  try {
+    proxyAlive = typeof mesh.tcpProbe === "function" ? await mesh.tcpProbe(proxyEp.host, proxyEp.port) : true;
+  } catch {}
+  if (proxyAlive) {
+    const viaProxy = await curlFetch(url, { proxy, timeoutMs: Math.min(timeoutMs, 30000) });
+    if (viaProxy.ok) return viaProxy;
+    errors.push(`curl 代理 ${proxy}：${viaProxy.error || "失败"}`);
+  } else {
+    errors.push(`curl 代理 ${proxy}：端口不可达`);
+  }
+
+  const direct = await curlFetch(url, { timeoutMs: Math.min(timeoutMs, 30000) });
+  if (direct.ok) return direct;
+  errors.push(`curl 直连：${direct.error || "失败"}`);
+
+  return { ok: false, error: errors.join("；") };
 }
 
+/** 文件下载回退链：代理（可用时优先）→ 系统网络 → curl 直连 */
 async function downloadWithFallback(url, dest) {
-  const r = await netDownload(url, dest);
-  if (r.ok) return r;
+  const attempts = [];
   const proxy = curlProxyArg();
-  const out = await curlFallback(["-L", "--fail", "--silent", "--show-error", "-o", dest, "--proxy", proxy, url], 120000);
-  if (out === null) return { ok: false, error: `下载失败（${r.error}），curl 回退（代理 ${proxy}）亦失败` };
-  return { ok: true };
+  const proxyEp = proxyEndpoint();
+  let proxyOk = false;
+  try {
+    proxyOk = typeof mesh.tcpProbe === "function" ? await mesh.tcpProbe(proxyEp.host, proxyEp.port) : true;
+  } catch {}
+  if (proxyOk) {
+    const viaProxy = await curlFetch(url, { proxy, timeoutMs: 120000, output: dest });
+    if (viaProxy.ok) return viaProxy;
+    attempts.push(`代理 ${proxy}：${viaProxy.error || "失败"}`);
+  }
+
+  const r = await netDownload(url, { timeoutMs: 120000 });
+  if (r.ok) return r;
+  attempts.push(`系统网络：${r.error || (r.status ? `HTTP ${r.status}` : "失败")}`);
+
+  const direct = await curlFetch(url, { timeoutMs: 120000, output: dest });
+  if (direct.ok) return direct;
+  attempts.push(`curl 直连：${direct.error || "失败"}`);
+
+  return { ok: false, error: `下载失败（${attempts.join("；")}）` };
+}
+
+/** 从 GitHub tags Atom 源解析 tag 名称（优先取 entry id 末段，兼容 lightweight tag 的 title 为提交信息） */
+function parseTagsAtom(xml) {
+  const tags = [];
+  const re = /<entry\b[\s\S]*?<\/entry>/g;
+  let m;
+  while ((m = re.exec(String(xml || "")))) {
+    const entry = m[0];
+    const id = /<id>([\s\S]*?)<\/id>/.exec(entry)?.[1] || "";
+    const title = /<title>([\s\S]*?)<\/title>/.exec(entry)?.[1] || "";
+    const raw = (id.split("/").pop() || title)
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim();
+    if (raw) tags.push({ name: raw, commit: { sha: "" } });
+  }
+  return tags;
+}
+
+async function fetchGitHubTags() {
+  const atomUrl = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/tags.atom`;
+  const atom = await fetchTextWithFallback(atomUrl, { timeoutMs: 15000 });
+  if (atom.ok) {
+    const tags = parseTagsAtom(atom.text);
+    if (tags.length && mesh.pickLatestTag(tags)) return { ok: true, tags, source: "atom" };
+  }
+
+  const apiUrl = `https://api.github.com/repos/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/tags`;
+  const r = await fetchTextWithFallback(apiUrl, { timeoutMs: 15000 });
+  if (!r.ok) {
+    const atomPart = atom.error ? `Atom 源：${atom.error}；` : "";
+    return { ok: false, error: `${atomPart}API：${r.error}` };
+  }
+  let tags = null;
+  try { tags = JSON.parse(r.text); } catch {}
+  if (!Array.isArray(tags)) return { ok: false, error: "GitHub 标签接口返回内容异常" };
+  return { ok: true, tags, source: "api" };
 }
 
 async function updateCheck() {
   const current = localAppVersion();
-  const r = await fetchJsonWithFallback(`https://api.github.com/repos/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/tags`);
-  if (!r.ok) return { ok: false, error: r.error };
-  let tags = null;
-  try { tags = JSON.parse(r.text); } catch {}
-  if (!Array.isArray(tags)) return { ok: false, error: "GitHub 返回内容异常（可能网络受限）" };
-  const latest = mesh.pickLatestTag(tags);
+  const fetched = await fetchGitHubTags();
+  if (!fetched.ok) return { ok: false, error: fetched.error };
+  const latest = mesh.pickLatestTag(fetched.tags);
   if (!latest) return { ok: false, error: "远端没有可用版本 tag" };
   return {
     ok: true,
     current,
     latest: latest.version,
     tag: latest.tag,
-    sha: latest.sha,
+    sha: latest.sha || "",
+    source: fetched.source,
     hasUpdate: mesh.compareVersions(latest.version, current) > 0,
   };
 }
@@ -525,7 +646,8 @@ async function updateApply({ tag } = {}) {
   fs.mkdirSync(tmpBase, { recursive: true });
   try {
     const tarPath = path.join(tmpBase, "snapshot.tar.gz");
-    const url = `https://api.github.com/repos/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/tarball/refs/tags/${tagName}`;
+    // 直接走 codeload，避免 api.github.com 的限流与 302 链
+    const url = `https://codeload.github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/tar.gz/refs/tags/${tagName}`;
     const dl = await downloadWithFallback(url, tarPath);
     if (!dl.ok) return { ok: false, error: dl.error };
     const size = fs.statSync(tarPath).size;
