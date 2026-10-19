@@ -465,20 +465,45 @@ async function compactSession(configPath, config, nodeName, opts = {}) {
   };
 }
 
-/** 清空会话：删除目标节点上的绑定会话并清除绑定（不可恢复；下次派发自动新建） */
+/** 清空会话：目标可达时才删除远端会话并清除绑定；目标离线/拒绝时保持本地绑定不变 */
 async function clearSession(configPath, config, nodeName) {
   const hit = resolveNodeEntry(config, nodeName);
   if (!hit?.node) throw new Error(`未配置节点 "${nodeName}"`);
   const nodeKey = hit.key;
   const node = hit.node;
-  let deleted = null;
-  if (node.sessionId) {
-    const nodeCfg = { ...node, opencodePassword: resolveFleetPassword(config) };
-    if (nodeCfg.opencodePassword) {
-      const r = await opencodeApi(nodeCfg, "DELETE", `/session/${node.sessionId}`, undefined, 15000);
-      if (r.status === 200 || r.status === 404) deleted = node.sessionId;
+
+  // 没有绑定会话：只清理可能残留的占用缓存与 digest，不需要访问目标
+  if (!node.sessionId) {
+    const next = { ...node };
+    delete next.digest;
+    delete next.usage;
+    config.nodes[nodeKey] = next;
+    if (configPath) {
+      try { saveConfigFile(configPath, config); } catch {}
     }
+    return { ok: true, deletedSessionId: null, noBinding: true };
   }
+
+  const nodeCfg = { ...node, opencodePassword: resolveFleetPassword(config) };
+  if (!nodeCfg.opencodePassword) {
+    return { ok: false, error: "缺少网络统一密码，无法确认目标节点会话状态；已拒绝清空，本机绑定保持不变" };
+  }
+
+  const r = await opencodeApi(nodeCfg, "DELETE", `/session/${node.sessionId}`, undefined, 15000);
+  if (r.status === 0) {
+    return {
+      ok: false,
+      error: `目标节点不可达，已拒绝清空：${r.text || "连接失败"}；本机绑定与占用缓存保持不变`,
+    };
+  }
+  if (r.status !== 200 && r.status !== 404) {
+    return {
+      ok: false,
+      error: `目标节点拒绝删除会话（HTTP ${r.status}${r.text ? ` ${String(r.text).slice(0, 80)}` : ""}）；本机绑定保持不变`,
+    };
+  }
+
+  const deleted = r.status === 200 ? node.sessionId : null;
   const next = { ...node };
   delete next.sessionId;
   delete next.digest;
@@ -487,7 +512,7 @@ async function clearSession(configPath, config, nodeName) {
   if (configPath) {
     try { saveConfigFile(configPath, config); } catch {}
   }
-  return { ok: true, deletedSessionId: deleted };
+  return { ok: true, deletedSessionId: deleted, alreadyGone: r.status === 404 };
 }
 
 /** 按 opencode-mesh 协议派发任务（复用节点会话；解析回执块） */

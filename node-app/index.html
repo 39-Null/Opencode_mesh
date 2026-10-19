@@ -1369,23 +1369,23 @@
     if (n >= 1000) return Math.round(n / 1000) + "K";
     return String(n);
   }
-  /** ctx 徽标：本机不标注；仅目标设备显示具体百分比（<60 中性 / ≥60 黄 / ≥80 红 flush） */
+  /** ctx 徽标：本机不标注；仅显示目标节点上与该主控绑定的会话占用（<60 中性 / ≥60 黄 / ≥80 红 flush） */
   function ctxBadgeInfo(n, localId) {
     if (localId && n.id === localId) return null;
     const u = n.usage || null;
     const timeStr = u?.at ? new Date(u.at).toLocaleTimeString() : "";
     if (!u || !u.used) {
-      return { cls: "badge badgeCtx", text: "ctx —", title: "尚无会话占用记录（派发任务后自动记录）" };
+      return { cls: "badge badgeCtx", text: "ctx —", title: "目标节点尚无会话占用记录（派发任务后自动记录；非本机占用）" };
     }
     if (!u.limit) {
-      return { cls: "badge badgeCtx", text: `ctx ${fmtTokens(u.used)}`, title: `占用 ${u.used} tokens（模型上限未知）· ${timeStr}` };
+      return { cls: "badge badgeCtx", text: `ctx ${fmtTokens(u.used)}`, title: `目标节点会话占用 ${u.used} tokens（模型上限未知）· ${timeStr}` };
     }
     const pct = Math.round((u.used / u.limit) * 100);
     const cls = pct >= 80 ? "badge badgeCtx bad" : pct >= 60 ? "badge badgeCtx warn" : "badge badgeCtx";
     return {
       cls,
       text: pct >= 80 ? `ctx ${pct}% flush` : `ctx ${pct}%`,
-      title: `${u.used}/${u.limit}（${pct}%）· 模型 ${u.model || "?"} · 更新于 ${timeStr}`,
+      title: `目标节点会话占用 ${u.used}/${u.limit}（${pct}%）· 模型 ${u.model || "?"} · 更新于 ${timeStr}`,
     };
   }
   /** 事件驱动刷新各目标节点（非本机）的会话占用；失败保留缓存值 */
@@ -1560,7 +1560,7 @@
   async function clearNodeUI(n, btn) {
     if (busy) return;
     const name = n.id || n.name;
-    if (!confirm(`清空与「${n.name || name}」的对话上下文？\n\n• 删除目标节点上的绑定会话（不可恢复）\n• 下次派发将自动新建会话`)) return;
+    if (!confirm(`清空与「${n.name || name}」的对话上下文？\n\n• 删除目标节点上的绑定会话（不可恢复）\n• 下次派发将自动新建会话\n• 目标离线或拒绝删除时将直接失败，本机绑定保持不变`)) return;
     btn.disabled = true;
     const old = btn.textContent;
     btn.textContent = "清空中…";
@@ -1570,7 +1570,10 @@
         setOp(`清空失败：${r?.error || "未知错误"}`, "bad");
         return;
       }
-      setOp(r.deletedSessionId ? `已清空：删除会话 ${String(r.deletedSessionId).slice(0, 8)}…` : "无绑定会话（已清空绑定）", "ok");
+      if (r.deletedSessionId) setOp(`已删除远端会话 ${String(r.deletedSessionId).slice(0, 8)}… 并清除本机绑定`, "ok");
+      else if (r.alreadyGone) setOp("远端会话已不存在；已清除本机绑定与占用缓存", "ok");
+      else if (r.noBinding) setOp("无绑定会话（已清除占用缓存）", "ok");
+      else setOp("已清除本机绑定", "ok");
       await refreshMasterList();
     } finally {
       btn.disabled = false;
