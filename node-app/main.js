@@ -355,6 +355,31 @@ ipcMain.handle("mesh:master:save", (_e, cfg) => {
 });
 ipcMain.handle("mesh:master:sync", () => mesh.syncMasterNodes(ROOT));
 ipcMain.handle("mesh:master:prune", () => mesh.pruneMasterNodes(ROOT));
+ipcMain.handle("mesh:master:removeNode", async (_e, name) => {
+  try {
+    return await mesh.removeMasterNode(ROOT, String(name || ""));
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle("mesh:join:quickConfig", async (_e, opts) => {
+  try {
+    const r = await mesh.buildQuickConfig(ROOT, { includePassword: !!opts?.includePassword });
+    if (!r.ok) return r;
+    await clipboard.writeText(r.text);
+    return { ok: true, passwordIncluded: r.passwordIncluded, expiresAt: r.expiresAt, warning: r.warning };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle("mesh:join:readClipboard", async () => {
+  try {
+    const text = String((await clipboard.readText()) ?? "");
+    return mesh.parseQuickConfig(text);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 ipcMain.handle("mesh:master:list", () => mesh.listNodesMerged(ROOT));
 ipcMain.handle("mesh:master:action", (_e, p) => mesh.nodeAction(ROOT, p?.name, p?.action));
 ipcMain.handle("mesh:master:visitors:ensure", (_e, opts) => mesh.ensureVisitor(ROOT, opts || {}));

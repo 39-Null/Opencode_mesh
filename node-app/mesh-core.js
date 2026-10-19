@@ -1011,6 +1011,113 @@ async function pruneMasterNodes(root) {
   return { ok: true, removed };
 }
 
+/** Hub 端撤销节点：优先 DELETE /admin/nodes；旧 Hub 自动回退 POST /admin/revoke */
+async function registryRevoke(root, reg, id) {
+  const rq = registryRequest(root, reg);
+  if (!rq.address) return { ok: false, status: 0, error: "尚未配置 Hub" };
+  const scheme = rq.fingerprint ? "https" : "http";
+  const base = `${scheme}://${rq.address}:${rq.port}`;
+  let r = await registryHttpJson("DELETE", `${base}/admin/nodes`, { id }, rq.headers, 8000, rq.fingerprint);
+  // 旧版 Hub 没有 DELETE 路由时回退到既有吊销接口
+  if (r.status === 404 && (!r.json || r.json.error === "not found")) {
+    r = await registryHttpJson("POST", `${base}/admin/revoke`, { id }, rq.headers, 8000, rq.fingerprint);
+  }
+  return r;
+}
+
+/** 节点移除后重建 visitor 配置；无剩余节点时停止隧道并删除含密钥的配置 */
+async function refreshVisitorsAfterRemoval(root) {
+  const cfg = getMasterConfig(root) || {};
+  const remaining = Object.keys(cfg.nodes || {});
+  const conf = path.join(root, "node-ctl", "visitors.toml");
+  const st = await visitorStatus(root);
+
+  if (!remaining.length) {
+    let stopped = false;
+    if (st.running) {
+      const s = await stopVisitor(root);
+      stopped = !!s.ok;
+    }
+    try { await killGhostProcesses(root, null, "visitor"); } catch {}
+    let removedConfig = false;
+    try {
+      if (fs.existsSync(conf)) { fs.unlinkSync(conf); removedConfig = true; }
+    } catch {}
+    return { ok: true, cleared: true, stopped, removedConfig };
+  }
+
+  const gen = await generateVisitors(root);
+  if (!gen.ok) {
+    // 安全兜底：旧配置可能仍含被移除节点的 stcp 密钥，不能保留
+    if (st.running) { try { await stopVisitor(root); } catch {} }
+    try { await killGhostProcesses(root, null, "visitor"); } catch {}
+    try { fs.rmSync(conf, { force: true }); } catch {}
+    return { ok: false, cleared: true, error: gen.error };
+  }
+  if (cfg.visitorPaused) return { ok: true, regenerated: true, paused: true, running: false };
+  if (!st.running) return { ok: true, regenerated: true, running: false };
+  const started = await startVisitor(root);
+  return started.ok
+    ? { ok: true, regenerated: true, restarted: true, port: started.port }
+    : { ok: false, regenerated: true, error: started.error };
+}
+
+/** 从 Hub 与本地主控彻底移除节点：注册身份、token、stcp 密钥、已用加入密钥、会话绑定与 visitor 条目 */
+async function removeMasterNode(root, name) {
+  ensureRepoRoot(root);
+  const target = String(name || "").trim();
+  if (!target) return { ok: false, error: "缺少节点 id 或名称" };
+  const cfg = getMasterConfig(root);
+  if (!cfg) return { ok: false, error: "主控配置不存在" };
+
+  const nodes = cfg.nodes || {};
+  const localKey = Object.prototype.hasOwnProperty.call(nodes, target)
+    ? target
+    : Object.keys(nodes).find((k) => nodes[k]?.name === target) || "";
+  const loc = localKey ? nodes[localKey] : null;
+  const id = localKey || target;
+  const nodeInfo = await getNodeConfig(root);
+  const localId = nodeInfo.registeredId || "";
+  if (localId && id === localId) {
+    return { ok: false, error: "不能移除本机节点；请在其他主控上操作，或使用本机「重置身份」" };
+  }
+
+  const server = await registryRevoke(root, cfg.registry, id);
+  const serverOk = server.status === 200 && server.json?.ok !== false;
+  const alreadyGone = server.status === 404 && server.json?.error === "node not found";
+  if (!serverOk && !alreadyGone) {
+    return { ok: false, error: `Hub 撤销失败：${server.json?.error || server.text || `HTTP ${server.status}`}` };
+  }
+
+  const removedLocal = [];
+  if (loc) {
+    for (const k of Object.keys(nodes)) {
+      const v = nodes[k];
+      if (k === id || k === target || v?.name === loc.name || v?.name === target) {
+        delete nodes[k];
+        removedLocal.push(k);
+      }
+    }
+    cfg.nodes = nodes;
+    saveMasterConfig(root, cfg);
+  }
+
+  let visitors = null;
+  if (removedLocal.length) {
+    visitors = await refreshVisitorsAfterRemoval(root);
+  }
+  return {
+    ok: true,
+    id,
+    name: loc?.name || target,
+    alreadyGone,
+    removedLocal,
+    server: server.json?.revoked || null,
+    visitors,
+    warning: visitors && visitors.ok === false ? `节点已移除，但隧道配置刷新失败：${visitors.error}` : "",
+  };
+}
+
 async function listNodesMerged(root) {
   const cfg = getMasterConfig(root) || {};
   const regNodes = await registryNodes(root, cfg.registry);
@@ -1498,6 +1605,167 @@ function applyMasterImport(root, raw) {
   };
 }
 
+/** 读取网络统一 opencode 密码（主控密文优先，回退本机节点密文） */
+function resolveSharedPassword(root) {
+  let password = "";
+  try {
+    const master = getMasterConfig(root);
+    if (master?.fleetPasswordEnc) password = secretStore(root).unseal(master.fleetPasswordEnc);
+  } catch {}
+  if (!password) {
+    try {
+      const nodeCfg = readJson(path.join(agentDir(root), "node.json"));
+      const oc = nodeCfg?.opencode || {};
+      password = oc.passwordEnc ? secretStore(root).unseal(oc.passwordEnc) : (oc.password || "");
+    } catch {}
+  }
+  return password || "";
+}
+
+/** 在 Hub 创建一次性加入密钥（需要本机节点 token 或 admin token） */
+async function createJoinKey(root) {
+  const cfg = getMasterConfig(root) || {};
+  const rq = registryRequest(root, cfg.registry);
+  if (!rq.address) return { ok: false, error: "尚未配置 Hub（请先在设置页填写 Hub 连接）" };
+  if (!rq.headers["X-Node-Token"] && !rq.headers["X-Admin-Token"]) {
+    return { ok: false, error: "缺少 Hub 管理凭据：请先启动本机节点，或在主控配置中提供 admin token" };
+  }
+  const scheme = rq.fingerprint ? "https" : "http";
+  const r = await registryHttpJson(
+    "POST",
+    `${scheme}://${rq.address}:${rq.port}/admin/keys`,
+    { count: 1 },
+    rq.headers,
+    10000,
+    rq.fingerprint
+  );
+  const composed = r.status === 200 && r.json?.ok ? String(r.json.keys?.[0] || "") : "";
+  if (!composed) {
+    return { ok: false, error: `Hub 创建加入密钥失败：${r.json?.error || r.text || `HTTP ${r.status}`}` };
+  }
+  const [key, fp] = composed.split(".");
+  return {
+    ok: true,
+    key,
+    fingerprint: String(r.json.fingerprint || fp || rq.fingerprint || "").replace(/:/g, "").toLowerCase(),
+    expiresAt: r.json.expiresAt || null,
+  };
+}
+
+/** 生成新设备快速配置文本（调用方负责写入剪贴板；不落盘、不打印） */
+async function buildQuickConfig(root, opts = {}) {
+  ensureRepoRoot(root);
+  const cfg = getMasterConfig(root) || {};
+  if (!cfg.registry?.address) return { ok: false, error: "尚未配置 Hub（请先在设置页填写 Hub 连接）" };
+
+  const created = await createJoinKey(root);
+  if (!created.ok) return created;
+  const password = opts.includePassword ? resolveSharedPassword(root) : "";
+  const joinKey = created.fingerprint ? `${created.key}.${created.fingerprint}` : created.key;
+  const createdAt = new Date().toISOString();
+  const expiresAt = created.expiresAt || new Date(Date.now() + 72 * 3600_000).toISOString();
+  const payload = {
+    app: "aoi-mesh",
+    kind: "node-quick-config",
+    version: 1,
+    createdAt,
+    expiresAt,
+    hub: {
+      address: String(cfg.registry.address),
+      port: parseInt(cfg.registry.port, 10) || 18080,
+      ...(created.fingerprint ? { fingerprint: created.fingerprint } : {}),
+    },
+    joinKey,
+    opencode: { port: 4096 },
+    agent: { port: 41999 },
+    suggestedName: "",
+  };
+  if (password) payload.password = password;
+
+  const text = [
+    "Aoi mesh 快速配置（一次性；含敏感凭据，请通过可信渠道传输，使用后请清除剪贴板）",
+    "[Aoi-mesh-quick-config v1]",
+    JSON.stringify(payload, null, 2),
+    "[/Aoi-mesh-quick-config]",
+  ].join("\n");
+  return {
+    ok: true,
+    text,
+    passwordIncluded: !!password,
+    expiresAt,
+    warning: opts.includePassword && !password ? "未找到本机网络统一密码，快速配置未包含密码" : "",
+  };
+}
+
+/** 解析并严格过滤剪贴板中的快速配置（只接受带标记且未过期/未篡改的有效数据） */
+function parseQuickConfig(text) {
+  const raw = String(text || "");
+  if (raw.length > 200_000) return { ok: false, error: "剪贴板内容过大" };
+  const m = /\[Aoi-mesh-quick-config v1\]([\s\S]*?)\[\/Aoi-mesh-quick-config\]/i.exec(raw);
+  if (!m) return { ok: false, error: "未找到 Aoi mesh 快速配置标记" };
+
+  let data;
+  try {
+    data = JSON.parse(m[1].replace(/^\uFEFF/, "").trim());
+  } catch {
+    return { ok: false, error: "快速配置 JSON 无效" };
+  }
+  if (!data || data.app !== "aoi-mesh" || data.kind !== "node-quick-config" || Number(data.version) !== 1) {
+    return { ok: false, error: "快速配置标识或版本不匹配" };
+  }
+
+  const hub = data.hub || {};
+  const address = String(hub.address || "").trim();
+  const port = parseInt(hub.port, 10) || 18080;
+  if (!address || address.length > 253 || /\s/.test(address)) return { ok: false, error: "Hub 地址无效" };
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return { ok: false, error: "Hub 端口无效" };
+
+  const parts = String(data.joinKey || "").trim().split(".");
+  if (parts.length > 2) return { ok: false, error: "加入密钥格式无效" };
+  const key = String(parts[0] || "").toLowerCase();
+  const keyFp = String(parts[1] || "").replace(/:/g, "").toLowerCase();
+  if (!/^[a-f0-9]{16,128}$/.test(key)) return { ok: false, error: "加入密钥无效" };
+  const hubFp = String(hub.fingerprint || keyFp || "").replace(/:/g, "").toLowerCase();
+  if (hubFp && !/^[a-f0-9]{64}$/.test(hubFp)) return { ok: false, error: "Hub TLS 指纹无效" };
+  if (keyFp && hubFp && keyFp !== hubFp) return { ok: false, error: "加入密钥指纹与 Hub 指纹不一致" };
+
+  const created = Date.parse(String(data.createdAt || ""));
+  const now = Date.now();
+  if (!Number.isFinite(created) || created > now + 24 * 3600_000 || now - created > 7 * 24 * 3600_000) {
+    return { ok: false, error: "快速配置已过期或生成时间无效" };
+  }
+  if (data.expiresAt) {
+    const expires = Date.parse(String(data.expiresAt));
+    if (!Number.isFinite(expires) || now > expires) return { ok: false, error: "一次性加入密钥已过期" };
+  }
+
+  const ocPort = parseInt(data.opencode?.port, 10) || 4096;
+  const agentPort = parseInt(data.agent?.port, 10) || 41999;
+  if (!Number.isInteger(ocPort) || ocPort < 1 || ocPort > 65535) return { ok: false, error: "opencode 端口无效" };
+  if (!Number.isInteger(agentPort) || agentPort < 1 || agentPort > 65535) return { ok: false, error: "agent 端口无效" };
+
+  const password = String(data.password || "");
+  if (password && (password.length < 8 || password.length > 256)) {
+    return { ok: false, error: "网络统一密码长度无效" };
+  }
+  const suggested = String(data.suggestedName || "").trim().toLowerCase();
+  const suggestedName = /^[a-z0-9_-]{2,32}$/.test(suggested) ? suggested : "";
+
+  return {
+    ok: true,
+    config: {
+      hub: { address, port, ...(hubFp ? { fingerprint: hubFp } : {}) },
+      joinKey: hubFp ? `${key}.${hubFp}` : key,
+      opencode: { port: ocPort },
+      agent: { port: agentPort },
+      password,
+      suggestedName,
+      createdAt: new Date(created).toISOString(),
+      expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : "",
+    },
+  };
+}
+
 async function fleetSnippet(root) {
   const cfg = getMasterConfig(root);
   if (!cfg) return { ok: false, error: "请先配置主控" };
@@ -1595,6 +1863,10 @@ module.exports = {
   ensureRepoRoot,
   syncMasterNodes,
   pruneMasterNodes,
+  removeMasterNode,
+  createJoinKey,
+  buildQuickConfig,
+  parseQuickConfig,
   resetNodeState,
   startNodeFull,
   ensureVisitor,

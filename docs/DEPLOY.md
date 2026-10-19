@@ -410,17 +410,23 @@ setx OPENCODE_MESH_ROOT "C:\path\to\opencode-mesh"
 
 ## 8. 卸载引导
 
-### 8.1 节点退网（在节点设备上）
+### 8.1 节点退网（从其他控制端移除）
 
-1. App →「设置」页 →「停止节点」（或直接「重置身份」以清除本机注册状态）
-2. 在任一已入网设备 / Hub 上吊销该节点：`POST /admin/revoke`（凭节点凭据或所有者密钥）
-3. 关闭开机自启（如配置）：删除启动文件夹中的相关文件（§7.4）
-4. 如需彻底清除本地痕迹：删除 `node-agent/data/` 与 `node-agent/node.json`
+1. 在**其他**已入网设备的 App →「主控」→ 目标节点卡片 →「移除」
+2. Hub 会删除该节点的注册身份、token、stcp 密钥与已用加入密钥，并释放端口；本机主控删除节点配置、会话绑定并重建/清理 visitors 配置
+3. 旧版 Hub 会自动回退到 `POST /admin/revoke`（建议 Hub 同步升级）
+4. 被移除节点无法再用旧凭据接入；如需在本机彻底清除痕迹：停止节点后删除 `node-agent/data/` 与 `node-agent/node.json`
+5. 本机节点不能从自身 App 移除；请在其他主控操作，或在本机使用「设置」→「重置身份」
+
+> 审计日志只记录节点 id、端口与清理的密钥数量，不记录 token / stcp 密钥 / 密码。
+>
+> 被移除设备本地可能仍缓存其曾同步过的其他节点凭据，服务器无法远程清除；需要彻底隔离时请轮换网络统一密码或重建网络凭据。
 
 ### 8.2 控制端移除
 
-1. App →「设置」页 →「停用隧道」
-2. 删除 `node-ctl/nodes.json` 与 `node-ctl/visitors.toml`（即清空本地凭据）
+1. 先在「主控」页移除不再需要的节点（或确认这些节点已从 Hub 撤销）
+2. App →「设置」页 →「停用隧道」
+3. 删除 `node-ctl/nodes.json` 与 `node-ctl/visitors.toml`（即清空本地凭据）
 
 ### 8.3 Hub 卸载（公网服务器）
 
@@ -432,7 +438,7 @@ rm -rf /opt/opencode-mesh /etc/opencode-mesh /var/log/opencode-mesh
 
 ### 8.4 App 本体卸载
 
-- 退出 App（本机页「退出」或托盘右键「退出应用」）
+- 退出 App（侧栏底部「退出应用」或托盘右键「退出应用」）
 - 删除仓库目录（源码方式）或便携包目录（kit 方式）
 - 移除别名（如安装）：删除 `%APPDATA%\npm\opencode-mesh.cmd`（Windows）或 `~/.local/bin/opencode-mesh` 软链（Linux）
 
@@ -477,7 +483,9 @@ npm start
 - **引导期（v1.3.0 → v1.4.0）**：需手动安装一次新 kit——推荐**同目录覆盖**（把新包的 `app/` 与 `opencode-mesh/` 复制进旧目录），或把旧目录的 `node-agent/node.json`、`node-agent/data/`、`node-ctl/nodes.json` 拷贝到新目录。此后版本均可在应用内更新
 - **涉及 Electron 壳（`app/`）变更的版本**：按发布说明下载新版 kit，覆盖 `app/`（不会触碰数据文件）
 - 覆盖范围说明：更新只写代码文件（`node-agent/*.js`、`node-ctl/*.js`、`scripts/`、`docs/`、`node-app/` 界面源码等），不触碰节点配置/状态/主控节点表/隧道配置
-- 网络受限环境：优先走系统代理；失败自动回退 `curl` + Bot 的 `TELEGRAM_PROXY_URL` 代理配置
+- 网络受限环境：检查更新优先读取 GitHub tags Atom 源，失败回退 API；请求链为系统网络 → 可用代理 → curl 直连。下载走 codeload 直链，优先使用可达代理
+- **v1.5.1 引导**：v1.5.0 及更早版本若「检查更新」报错，请手动 `git pull` 或替换一次应用包；升级后恢复应用内更新
+- **v1.5.2 节点移除**：建议 Hub 同步升级以使用 `DELETE /admin/nodes` 与加入密钥清理；旧 Hub 自动回退到既有吊销接口
 
 | 组件 | 操作（发行版） |
 | --- | --- |

@@ -178,8 +178,11 @@ enabled = false
 | POST | `/heartbeat` | 节点存活/版本上报 |
 | GET | `/nodes` | 节点列表（**注册节点凭据**或所有者密钥；含 stcpSecret/token，供控制端生成 visitor） |
 | GET | `/admin/frps` | frps 连接信息（注册节点凭据或所有者密钥） |
-| POST | `/admin/keys` | 生成一次性加入密钥（注册节点凭据或所有者密钥） |
-| POST | `/admin/revoke` | 吊销节点与密钥（注册节点凭据或所有者密钥） |
+| POST | `/admin/keys` | 生成一次性加入密钥（注册节点凭据或所有者密钥）；返回 TTL |
+| DELETE | `/admin/nodes` | 规范化移除节点：删除注册身份、token、stcp 密钥与已用加入密钥，释放端口并审计（注册节点凭据或所有者密钥） |
+| POST | `/admin/revoke` | 旧版吊销别名（保留兼容；行为同 `DELETE /admin/nodes`） |
+
+- 加入密钥清理：启动时及每小时清理过期未使用密钥，以及 `usedBy` 指向已不存在节点的孤儿密钥；已绑定节点的密钥保留以支持重装恢复
 
 - 部署：`install.sh`（RPM 优先、DEB 兼容）、systemd 单元；安全组只需放行 **22 + 17000 + 18080**
 

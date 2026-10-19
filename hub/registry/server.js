@@ -84,6 +84,27 @@ function joinKeyExpiry() {
   return new Date(Date.now() + JOIN_KEY_TTL_HOURS * 3600_000).toISOString();
 }
 
+/** 清理无主/过期加入密钥：已绑定节点的密钥保留（支持重装恢复），仅删除未使用且过期或绑定节点已不存在的密钥 */
+function pruneKeys() {
+  let removed = 0;
+  const now = Date.now();
+  for (const key of Object.keys(data.keys)) {
+    const rec = data.keys[key];
+    if (!rec) { delete data.keys[key]; removed++; continue; }
+    const orphan = rec.usedBy && !own(data.nodes, rec.usedBy);
+    const expiredUnused = !rec.usedBy && rec.expiresAt && now > Date.parse(rec.expiresAt);
+    if (orphan || expiredUnused) {
+      delete data.keys[key];
+      removed++;
+    }
+  }
+  if (removed) {
+    save();
+    audit("keys_prune", { count: removed });
+  }
+  return removed;
+}
+
 function usedPorts() {
   const set = new Set();
   for (const n of Object.values(data.nodes)) {
@@ -140,6 +161,13 @@ function canManage(req) {
   return isAdmin(req) || isAnyNodeToken(req.headers);
 }
 
+/** 审计用操作者标识：admin 或发起请求的节点 id（不记录 token） */
+function actorId(req) {
+  if (isAdmin(req)) return "admin";
+  const n = findNodeByToken(req.headers["x-node-token"]);
+  return n?.id || "unknown";
+}
+
 function findNodeByToken(token) {
   if (!token) return null;
   return Object.values(data.nodes).find((n) => n.token === token) || null;
@@ -161,6 +189,10 @@ function publicNode(n) {
   };
 }
 
+// 启动时清理历史遗留的过期/孤儿加入密钥；运行期间每小时清理一次
+pruneKeys();
+setInterval(pruneKeys, 3600_000);
+
 async function handleRequest(req, res) {
   const url = new URL(req.url, "http://localhost");
   const route = `${req.method} ${url.pathname}`;
@@ -181,16 +213,23 @@ async function handleRequest(req, res) {
       if (body === null) return json(res, 400, { ok: false, error: "bad json" });
       const count = Math.min(Math.max(parseInt(body.count || 1, 10), 1), 20);
       const keys = [];
+      let expiresAt = null;
       for (let i = 0; i < count; i++) {
         const key = crypto.randomBytes(24).toString("hex");
-        data.keys[key] = { createdAt: new Date().toISOString(), usedBy: null, expiresAt: joinKeyExpiry() };
+        expiresAt = joinKeyExpiry();
+        data.keys[key] = { createdAt: new Date().toISOString(), usedBy: null, expiresAt };
         keys.push(key);
       }
       save();
       audit("keys_create", { count, ids: keys.map((k) => k.slice(0, 8)) }, req);
       // TLS 启用时返回「密钥.指纹」组合串：接收方粘贴后自动拆分并钉扎指纹
       const out = tlsInfo ? keys.map((k) => `${k}.${tlsInfo.fingerprint}`) : keys;
-      return json(res, 200, { ok: true, keys: out, fingerprint: tlsInfo ? tlsInfo.fingerprint : null });
+      return json(res, 200, {
+        ok: true,
+        keys: out,
+        fingerprint: tlsInfo ? tlsInfo.fingerprint : null,
+        expiresAt,
+      });
     }
 
     if (route === "GET /admin/frps") {
@@ -338,24 +377,48 @@ async function handleRequest(req, res) {
       return json(res, 200, { ok: true, nodes: list });
     }
 
-    if (route === "POST /admin/revoke") {
+    if (route === "DELETE /admin/nodes" || route === "POST /admin/revoke") {
       if (!canManage(req)) { audit("auth_fail", { route }, req); return json(res, 401, { ok: false, error: "unauthorized" }); }
       const body = await readBody(req);
       if (body === null) return json(res, 400, { ok: false, error: "bad json" });
-      const target = body.id || body.name;
-      const entry = (typeof target === "string" && own(data.nodes, target) ? data.nodes[target] : null)
+      const target = String(body.id || body.name || "").trim();
+      if (!target) return json(res, 400, { ok: false, error: "missing node id or name" });
+      const entry = (own(data.nodes, target) ? data.nodes[target] : null)
         || Object.values(data.nodes).find((n) => n.name === target)
         || null;
-      if (entry) {
-        delete data.nodes[entry.id];
-        for (const k of Object.keys(data.keys)) {
-          if (data.keys[k].usedBy === entry.id) delete data.keys[k];
+      if (!entry) return json(res, 404, { ok: false, error: "node not found" });
+
+      const by = actorId(req);
+      delete data.nodes[entry.id];
+      // 删除该节点占用的所有加入密钥（兼容历史 usedBy=name 的数据）
+      let keysRemoved = 0;
+      for (const k of Object.keys(data.keys)) {
+        const usedBy = data.keys[k]?.usedBy;
+        if (usedBy && (usedBy === entry.id || usedBy === entry.name || usedBy === target)) {
+          delete data.keys[k];
+          keysRemoved++;
         }
-        save();
-        audit("revoke", { id: entry.id }, req);
-        return json(res, 200, { ok: true, revoked: entry.id });
       }
-      return json(res, 404, { ok: false, error: "node not found" });
+      pruneKeys();
+      save();
+      audit("revoke", {
+        id: entry.id,
+        name: entry.name,
+        by,
+        keysRemoved,
+        opencodeRemotePort: entry.opencodeRemotePort || null,
+        agentRemotePort: entry.agentRemotePort || null,
+      }, req);
+      return json(res, 200, {
+        ok: true,
+        revoked: {
+          id: entry.id,
+          name: entry.name,
+          opencodeRemotePort: entry.opencodeRemotePort || null,
+          agentRemotePort: entry.agentRemotePort || null,
+          keysRemoved,
+        },
+      });
     }
 
     return json(res, 404, { ok: false, error: "not found" });
