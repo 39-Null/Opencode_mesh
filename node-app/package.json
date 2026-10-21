@@ -1,6 +1,6 @@
 {
   "name": "opencode-mesh-node-app",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "opencode-mesh node app - local diagnostics and connection management",
   "private": true,
   "main": "main.js",

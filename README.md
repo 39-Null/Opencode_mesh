@@ -2,7 +2,7 @@
 
 多设备 [opencode](https://opencode.ai) 协作网络：把多台装有 opencode 的机器组成一个可远程调度、互相协作的私有网络。手机或任意控制端可随时启停各设备的 opencode、下发任务并回收结果。
 
-当前版本：**v1.5.2**（变更记录见 [CHANGELOG.md](CHANGELOG.md)）。
+当前版本：**v1.5.3**（变更记录见 [CHANGELOG.md](CHANGELOG.md)）。
 
 ## 特性
 
